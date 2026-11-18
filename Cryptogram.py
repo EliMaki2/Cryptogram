@@ -69,6 +69,7 @@ class Moonpanel(PygameWindow):
         self.position = (0, 0)
         self.possible_moves = []
         self.animation_frames = 0
+        self.mouse_down = False
 
     def check_available_moves(self, visited, position):
         row, col = position
@@ -336,25 +337,36 @@ class Moonpanel(PygameWindow):
                     diamond
                 )
 
-        for cell in self.possible_moves:
-            row, col = cell
-            if not self.grid[row][col] == "x":
+        if self.mouse_down:
+            for cell in self.possible_moves:
+                row, col = cell
+                if not self.grid[row][col] == "x":
+                    pygame.draw.circle(
+                        self.screen,
+                        self.shift_color(self.brighten_color(1.8),g_shift=50),
+                        (col * x_spacing + x_spacing // 2, row * y_spacing + y_spacing // 2),
+                        (min(x_spacing, y_spacing) // 8)*(self.animation_frames/40),
+                        2
+                    )
+
+            if len(self.visited) > 1:
                 pygame.draw.circle(
                     self.screen,
-                    self.shift_color(self.brighten_color(1.8),g_shift=50),
-                    (col * x_spacing + x_spacing // 2, row * y_spacing + y_spacing // 2),
+                    self.shift_color(self.brighten_color(1.8),r_shift=50),
+                    (self.visited[-2][1] * x_spacing + x_spacing // 2, self.visited[-2][0] * y_spacing + y_spacing // 2),
                     (min(x_spacing, y_spacing) // 8)*(self.animation_frames/40),
                     2
                 )
-
-        if len(self.visited) > 1:
-            pygame.draw.circle(
-                self.screen,
-                self.shift_color(self.brighten_color(1.8),r_shift=50),
-                (self.visited[-2][1] * x_spacing + x_spacing // 2, self.visited[-2][0] * y_spacing + y_spacing // 2),
-                (min(x_spacing, y_spacing) // 8)*(self.animation_frames/40),
-                2
-            )
+        
+        else:
+            if len(self.visited) == 1:
+                pygame.draw.circle(
+                    self.screen,
+                    self.shift_color(self.brighten_color(1.8),g_shift=50),
+                    (self.position[1] * x_spacing + x_spacing // 2, self.position[0] * y_spacing + y_spacing // 2),
+                    (min(x_spacing, y_spacing) // 8)*(self.animation_frames/30),
+                    2
+                )
 
         font = pygame.font.SysFont(None, 36)
         time_text = font.render(f"Time: {round(self.time, 2)}", True, (255, 255, 255))
@@ -389,35 +401,56 @@ class Moonpanel(PygameWindow):
             self.finish_countdown -= 1
         if self.finish_countdown == 1:
             return self.close(True)
+        if self.mouse_down == True:
+            mouse_pos = pygame.mouse.get_pos()
+            col = mouse_pos[0] // (self.width // self.x)
+            row = mouse_pos[1] // (self.height // self.y)
+            if (row, col) in self.possible_moves:
+                if self.grid[row][col] == "x":
+                    return
+                self.position = (row, col)
+                self.visited.append(self.position)
+            if len(self.visited) > 1:
+                if (row, col) == self.visited[-2]:
+                    self.position = (row, col)
+                    self.visited.pop()
+                    self.visited.pop()
         
 
     def event_loop(self, event):
         if self.finish_countdown == 0:
-            if event.type == pygame.MOUSEBUTTONDOWN:
+            if event.type == pygame.MOUSEBUTTONDOWN and self.mouse_down == False:
                 mouse_pos = pygame.mouse.get_pos()
                 col = mouse_pos[0] // (self.width // self.x)
                 row = mouse_pos[1] // (self.height // self.y)
-                if (row, col) in self.possible_moves:
-                    if self.grid[row][col] == "x":
-                        return
-                    self.position = (row, col)
-                    self.visited.append(self.position)
-                if len(self.visited) > 1:
-                    if (row, col) == self.visited[-2]:
-                        self.position = (row, col)
-                        self.visited.pop()
-                        self.visited.pop()
+                if (row, col) == self.position:
+                    self.mouse_down = True
+            elif event.type == pygame.MOUSEBUTTONDOWN and self.mouse_down == True:
+                self.mouse_down = False
+                
 
 
 class Sigilboard(PygameWindow):
     def __init__(self, width, height, name="Cryptogram", color=(150, 150, 150), difficulty=1, reward=1, time=60):
         super().__init__(width, height, name, color, difficulty, reward, time) 
         self.sigils = []
-        self.sigil_amount = difficulty+3
-        self.grid_size = 12+difficulty*4
+        self.sigil_amount = difficulty + 3
+        self.grid_size = 12 + difficulty * 4
+        print(self.grid_size)
+        print(self.sigil_amount)
         self.x = random.randint(3,(self.grid_size)//3)
         self.y = int(self.grid_size/self.x)
         self.grid = []
+        self.selected_sigil_index = None
+        self.tray_sigils = []
+        self.grid_offset_x = 0
+        self.grid_offset_y = 0
+        self.grid_scale = 0
+        self.drag_offset_x = 0
+        self.drag_offset_y = 0
+        self.tetrimino_colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255),
+                                 (255, 255, 0), (0, 255, 255), (255, 0, 255),
+                                 (128, 128, 128), (64, 64, 64), (200, 200, 200)]
 
     def avalible_positions(self, path, position):
         col, row = position
@@ -441,10 +474,14 @@ class Sigilboard(PygameWindow):
             self.grid.append(row_list)
 
         sigil_id = 1
-        max_total_attempts = 100
+        grid_size = self.x * self.y
+        total_cells = 0
+        max_total_attempts = 1000
         total_attempts = 0
         
-        while len(self.sigils) < self.sigil_amount and total_attempts < max_total_attempts:
+        # Keep generating tetrominoes until we have enough cells to fill the grid
+        # or until we've generated sigil_amount tetrominoes
+        while (total_cells < grid_size or len(self.sigils) < self.sigil_amount) and total_attempts < max_total_attempts:
             total_attempts += 1
             
             # Find an empty starting position
@@ -464,11 +501,14 @@ class Sigilboard(PygameWindow):
                 break
             
             # Build a tetrinomino starting from this position
+            # Try to fill remaining cells, but limit to 4 cells max
             tetrinomino = [(start_col, start_row)]
-            max_attempts = 20
+            remaining_cells = grid_size - total_cells - 1  # -1 for the starting cell
+            max_tetromino_size = min(4, remaining_cells) if remaining_cells > 0 else 1
+            max_attempts = 5
             attempt = 0
             
-            while len(tetrinomino) < 4 and attempt < max_attempts:
+            while len(tetrinomino) < max_tetromino_size and attempt < max_attempts:
                 attempt += 1
                 # Get available positions from all current cells in tetrinomino
                 all_possibles = []
@@ -487,46 +527,319 @@ class Sigilboard(PygameWindow):
                 next_cell = random.choice(all_possibles)
                 tetrinomino.append(next_cell)
 
-            if attempt == max_attempts:
-                self.sigils.append(tetrinomino)
-                self.sigil_amount += 1
-            
-            # Only add if we completed a tetrinomino
-            if len(tetrinomino) == 4:
-                self.sigils.append(tetrinomino)
+            # Only add if we have at least some cells
+            if len(tetrinomino) >= 1:
+                # Convert to relative coordinates from first cell
+                base_col, base_row = tetrinomino[0]
+                relative_coords = []
+                for col, row in tetrinomino:
+                    relative_coords.append((col - base_col, row - base_row))
+                
+                # Create sigil: (coordinates, color, position_in_tray)
+                sigil = [relative_coords, random.choice(self.tetrimino_colors), (0, 0)]
+                self.sigils.append(sigil)
+                self.tray_sigils.append(len(self.sigils) - 1)
+                
+                # Mark grid cells as filled
                 for col, row in tetrinomino:
                     self.grid[row][col] = sigil_id
                 sigil_id += 1
+                total_cells += len(tetrinomino)
 
+        # Clear grid marks
         for row in range(self.y):
             for col in range(self.x):
                 if self.grid[row][col] != " ":
                     self.grid[row][col] = " "
-
+        
     def draw_loop(self):
-        self.screen.fill(self.brighten_color(.6))
-        grid_height = self.height*.7
-        grid_x_scale = self.width / (self.x+1)
-        grid_y_scale = grid_height / (self.y+1)
-        grid_scale = min(grid_x_scale, grid_y_scale)
-        rect = pygame.Rect(0, grid_height, self.width, self.height - grid_height)
-        pygame.draw.rect(self.screen, self.brighten_color(1.1), rect)
-        for row in range(self.y+1):
-            if row == 0:
-                continue
-            for col in range(self.x+1):
-                if col == 0:
-                    continue
-                rect = pygame.Rect(col * grid_scale, row * grid_scale, grid_scale, grid_scale)
-                pygame.draw.rect(self.screen, self.brighten_color(1.3), rect, 2)
+        self.screen.fill(self.brighten_color(.5))
+        grid_height = self.height * 0.7
+        grid_x_scale = self.width / (self.x + 2)
+        grid_y_scale = grid_height / (self.y + 2)
+        self.grid_scale = min(grid_x_scale, grid_y_scale)
+        
+        if self.grid_scale == grid_x_scale:
+            self.grid_offset_y = (grid_height - self.grid_scale * self.y) / 2
+        else:
+            self.grid_offset_y = self.grid_scale / 2
 
-        for sigil in self.sigils:
-            for col, row in sigil:
-                rect = pygame.Rect(col * grid_scale, row * grid_scale, grid_scale, grid_scale)
-                pygame.draw.rect(self.screen, self.brighten_color(1.5), rect)
-        
+        if self.grid_scale == grid_y_scale:
+            self.grid_offset_x = (self.width - self.grid_scale * self.x) / 2
+        else:
+            self.grid_offset_x = self.grid_scale / 2
+            
+        # Draw grid background
+        grid_space = pygame.Rect(self.grid_offset_x, self.grid_offset_y, self.grid_scale * self.x, self.grid_scale * self.y)
+        pygame.draw.rect(self.screen, self.brighten_color(1.2), grid_space)
+
+        # Draw grid lines
+        for row in range(self.y + 1):
+            pygame.draw.line(self.screen, self.brighten_color(.9), 
+                           (self.grid_offset_x, self.grid_offset_y + row * self.grid_scale), 
+                           (self.grid_offset_x + self.x * self.grid_scale, self.grid_offset_y + row * self.grid_scale))
+        for col in range(self.x + 1):
+            pygame.draw.line(self.screen, self.brighten_color(.9), 
+                           (self.grid_offset_x + col * self.grid_scale, self.grid_offset_y), 
+                           (self.grid_offset_x + col * self.grid_scale, self.grid_offset_y + self.y * self.grid_scale))
+
+        # Draw tray area at bottom
+        tray_rect = pygame.Rect(0, grid_height, self.width, self.height - grid_height)
+        pygame.draw.rect(self.screen, self.brighten_color(1.1), tray_rect)
+        pygame.draw.line(self.screen, self.brighten_color(.9), (0, grid_height), (self.width, grid_height), 2)
+
+        # Draw sigils on the board and in tray
+        for idx, sigil in enumerate(self.sigils):
+            positions, color, offset = sigil
+            
+            # Determine if sigil is in tray or on board
+            if idx in self.tray_sigils:
+                # Draw in tray area
+                tray_x = 20 + (idx % 5) * 110
+                tray_y = grid_height + 20
+                for x, y in positions:
+                    rect = pygame.Rect(tray_x + x * self.grid_scale * 0.3, 
+                                      tray_y + y * self.grid_scale * 0.3, 
+                                      self.grid_scale * 0.3, 
+                                      self.grid_scale * 0.3)
+                    pygame.draw.rect(self.screen, color, rect)
+                    pygame.draw.rect(self.screen, self.brighten_color(.8), rect, 1)
+            else:
+                # Draw on board with offset
+                for x, y in positions:
+                    board_x = self.grid_offset_x + offset[0] + x * self.grid_scale
+                    board_y = self.grid_offset_y + offset[1] + y * self.grid_scale
+                    rect = pygame.Rect(board_x, board_y, self.grid_scale, self.grid_scale)
+                    pygame.draw.rect(self.screen, color, rect)
+                    pygame.draw.rect(self.screen, self.brighten_color(.8), rect, 1)
+
+        font = pygame.font.SysFont(None, 36)
+        time_text = font.render(f"Time: {round(self.time, 2)}", True, (255, 255, 255))
+        self.screen.blit(time_text, (10, 10))
+
+        if self.finish_countdown > 0:
+            tint_surface = pygame.Surface((self.width, self.height))
+            tint_surface.set_alpha(128)  # Adjust the alpha value as needed
+            tint_surface.fill((0, 255, 0))  # green tint
+            self.screen.blit(tint_surface, (0, 0))
+                
         pygame.display.flip()
+
+
+    def point_in_sigil(self, point):
+        x, y = point
+        grid_height = self.height * 0.7
         
+        # Check if click is in tray area
+        if y > grid_height:
+            for idx in self.tray_sigils:
+                sigil = self.sigils[idx]
+                positions = sigil[0]
+                tray_x = 20 + (idx % 5) * 110
+                tray_y = grid_height + 20
+                for px, py in positions:
+                    rect = pygame.Rect(tray_x + px * self.grid_scale * 0.3, 
+                                      tray_y + py * self.grid_scale * 0.3, 
+                                      self.grid_scale * 0.3, 
+                                      self.grid_scale * 0.3)
+                    if rect.collidepoint(x, y):
+                        return idx
+            return None
+        
+        # Check if click is on board
+        for idx, sigil in enumerate(self.sigils):
+            if idx in self.tray_sigils:
+                continue
+            positions = sigil[0]
+            offset = sigil[2]
+            for px, py in positions:
+                board_x = self.grid_offset_x + offset[0] + px * self.grid_scale
+                board_y = self.grid_offset_y + offset[1] + py * self.grid_scale
+                rect = pygame.Rect(board_x, board_y, self.grid_scale, self.grid_scale)
+                if rect.collidepoint(x, y):
+                    return idx
+        return None
+
+
+    def event_loop(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            # Get mouse position from event if available, otherwise from pygame
+            if hasattr(event, 'pos'):
+                point = event.pos
+            else:
+                point = pygame.mouse.get_pos()
+            
+            if event.button == 1:  # Left click
+                if self.selected_sigil_index is not None:
+                    # Already have a selected sigil - this click sets it down
+                    self.snap_to_grid(self.selected_sigil_index)
+                    self.selected_sigil_index = None
+                else:
+                    # No selected sigil - try to pick one up
+                    sigil_idx = self.point_in_sigil(point)
+                    if sigil_idx is not None:
+                        self.selected_sigil_index = sigil_idx
+                        is_from_tray = sigil_idx in self.tray_sigils
+                        # Remove from tray if it was there
+                        if is_from_tray:
+                            self.tray_sigils.remove(sigil_idx)
+                        # Store the mouse offset from the first cell's center
+                        # Pass whether it came from tray so we know to transition it to board
+                        self.update_drag_offset(point, is_from_tray)
+            
+            elif event.button == 3:  # Right click - rotate
+                # Allow rotation of currently selected sigil, or find a new one to rotate
+                sigil_idx = self.point_in_sigil(point)
+                if sigil_idx is not None:
+                    self.selected_sigil_index = sigil_idx
+                    self.rotate_sigil(sigil_idx)
+                elif self.selected_sigil_index is not None:
+                    # Rotate the currently selected sigil even if click wasn't on it
+                    self.rotate_sigil(self.selected_sigil_index)
+    
+    def update_drag_offset(self, mouse_pos, is_from_tray=False):
+        """Store the offset from mouse to first cell center for smooth dragging"""
+        if self.selected_sigil_index is None:
+            return
+        
+        sigil = self.sigils[self.selected_sigil_index]
+        positions = sigil[0]
+        
+        # First cell is at positions[0]
+        first_x, first_y = positions[0]
+        mouse_x, mouse_y = mouse_pos
+        
+        if is_from_tray:
+            # Placing tray sigil on board - set offset so first cell center is at mouse
+            # Formula: board_center_x = grid_offset_x + offset[0] + first_x * grid_scale + grid_scale/2
+            # We want: board_center_x = mouse_x
+            # So: offset[0] = mouse_x - grid_offset_x - first_x * grid_scale - grid_scale/2
+            new_offset_x = mouse_x - self.grid_offset_x - first_x * self.grid_scale - self.grid_scale / 2
+            new_offset_y = mouse_y - self.grid_offset_y - first_y * self.grid_scale - self.grid_scale / 2
+            
+            sigil[2] = (new_offset_x, new_offset_y)
+            
+            # Drag offset is now 0 (cursor is at first cell center)
+            self.drag_offset_x = 0
+            self.drag_offset_y = 0
+        else:
+            # Sigil is already on board - calculate normal drag offset
+            offset = sigil[2]
+            first_cell_center_x = self.grid_offset_x + offset[0] + first_x * self.grid_scale + self.grid_scale / 2
+            first_cell_center_y = self.grid_offset_y + offset[1] + first_y * self.grid_scale + self.grid_scale / 2
+            
+            self.drag_offset_x = mouse_x - first_cell_center_x
+            self.drag_offset_y = mouse_y - first_cell_center_y
+    
+    
+    def rotate_sigil(self, sigil_idx):
+        sigil = self.sigils[sigil_idx]
+        positions = sigil[0]
+        
+        # Rotate 90 degrees clockwise: (x, y) -> (y, -x)
+        rotated = []
+        for x, y in positions:
+            rotated.append((y, -x))
+        
+        # Normalize to start from (0, 0)
+        min_x = min(p[0] for p in rotated)
+        min_y = min(p[1] for p in rotated)
+        rotated = [(x - min_x, y - min_y) for x, y in rotated]
+        
+        sigil[0] = rotated
+    
+    def snap_to_grid(self, sigil_idx):
+        sigil = self.sigils[sigil_idx]
+        offset = sigil[2]
+        positions = sigil[0]
+        
+        grid_height = self.height * 0.7
+        
+        # Only snap if on the board (not in tray)
+        if offset[1] < grid_height - 50:
+            # Find which grid cell the first cell is closest to
+            first_x, first_y = positions[0]
+            # Calculate where the first cell is currently drawn on screen
+            first_cell_center_x = self.grid_offset_x + offset[0] + first_x * self.grid_scale + self.grid_scale / 2
+            first_cell_center_y = self.grid_offset_y + offset[1] + first_y * self.grid_scale + self.grid_scale / 2
+            
+            # Find closest grid cell
+            grid_col = int((first_cell_center_x - self.grid_offset_x) / self.grid_scale)
+            grid_row = int((first_cell_center_y - self.grid_offset_y) / self.grid_scale)
+            
+            # Clamp to grid bounds
+            grid_col = max(0, min(self.x - 1, grid_col))
+            grid_row = max(0, min(self.y - 1, grid_row))
+            
+            # Update position so first cell aligns with grid
+            # offset = (grid_col - first_x) * grid_scale, (grid_row - first_y) * grid_scale
+            snap_offset_x = (grid_col - first_x) * self.grid_scale
+            snap_offset_y = (grid_row - first_y) * self.grid_scale
+            sigil[2] = (snap_offset_x, snap_offset_y)
+            
+            # Mark grid cells as occupied
+            for x, y in positions:
+                cell_x = grid_col + (x - first_x)
+                cell_y = grid_row + (y - first_y)
+                if 0 <= cell_x < self.x and 0 <= cell_y < self.y:
+                    self.grid[cell_y][cell_x] = sigil_idx + 1
+        
+
+    def update_loop(self):
+        # Ensure grid parameters are calculated
+        # (They're normally calculated in draw_loop, but update_loop runs before draw_loop)
+        if self.grid_scale == 0:
+            grid_height = self.height * 0.7
+            grid_x_scale = self.width / (self.x + 2)
+            grid_y_scale = grid_height / (self.y + 2)
+            self.grid_scale = min(grid_x_scale, grid_y_scale)
+            
+            if self.grid_scale == grid_x_scale:
+                self.grid_offset_y = (grid_height - self.grid_scale * self.y) / 2
+            else:
+                self.grid_offset_y = self.grid_scale / 2
+
+            if self.grid_scale == grid_y_scale:
+                self.grid_offset_x = (self.width - self.grid_scale * self.x) / 2
+            else:
+                self.grid_offset_x = self.grid_scale / 2
+        
+        if self.selected_sigil_index is not None:
+            sigil = self.sigils[self.selected_sigil_index]
+            positions = sigil[0]
+            mouse_x, mouse_y = pygame.mouse.get_pos()
+            
+            # Get the first cell position
+            first_x, first_y = positions[0]
+            
+            # Calculate where the first cell's center should be
+            first_cell_center_x = mouse_x - self.drag_offset_x
+            first_cell_center_y = mouse_y - self.drag_offset_y
+            
+            # Using the board drawing formula:
+            # board_center_x = grid_offset_x + offset[0] + first_x * grid_scale + grid_scale/2
+            # We want: board_center_x = first_cell_center_x
+            # So: offset[0] = first_cell_center_x - grid_offset_x - first_x * grid_scale - grid_scale/2
+            new_offset_x = first_cell_center_x - self.grid_offset_x - first_x * self.grid_scale - self.grid_scale / 2
+            new_offset_y = first_cell_center_y - self.grid_offset_y - first_y * self.grid_scale - self.grid_scale / 2
+            
+            sigil[2] = (new_offset_x, new_offset_y)
+            #print(f'[update_loop] mouse=({mouse_x:.0f},{mouse_y:.0f}), offset=({new_offset_x:.1f},{new_offset_y:.1f}), selected={self.selected_sigil_index}')
+
+        self.time -= 1/60
+        if self.time <= 0:
+            return self.close(False)
+        if self.finish_countdown > 0:
+            self.finish_countdown -= 1
+        if self.finish_countdown == 1:
+            return self.close(True)
+        if self.finish_countdown == 0:
+            for row in range(self.y):
+                for col in range(self.x):
+                    cell = self.grid[row][col]
+                    if cell == " ":
+                        return None
+            self.finish_countdown = 5
 
 def create_moonpanel(width, height, title, color, difficulty, reward, time):
     panel = Moonpanel(width, height, title, color, difficulty, reward, time)
@@ -611,11 +924,11 @@ if __name__ == '__main__':
                 pygame.quit()
                 pygame_initialized = False
             if cooldown <= 60:
-                print(f"\rCooldown: {round(cooldown)} Seconds                         ", end="", flush=True)
+                print(f"Cooldown: {round(cooldown)} Seconds                         ", end="\r", flush=True)
             elif cooldown <= 3600:
-                print(f"\rCooldown: {round(cooldown//60)} Minutes, {round(cooldown%60)} Seconds                   ", end="", flush=True)
+                print(f"Cooldown: {round(cooldown//60)} Minutes, {round(cooldown%60)} Seconds                   ", end="\r", flush=True)
             else:
-                print(f"\rCooldown: {round(cooldown//3600)} Hours, {round((cooldown%3600)//60)} Minutes, {round(cooldown%60)} Seconds    ", end="", flush=True)
+                print(f"Cooldown: {round(cooldown//3600)} Hours, {round((cooldown%3600)//60)} Minutes, {round(cooldown%60)} Seconds    ", end="\r", flush=True)
             cooldown -= 1
             time.sleep(1)
             if cooldown <= 0:
