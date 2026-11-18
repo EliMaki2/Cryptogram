@@ -683,6 +683,9 @@ class Sigilboard(PygameWindow):
                         # Remove from tray if it was there
                         if is_from_tray:
                             self.tray_sigils.remove(sigil_idx)
+                        else:
+                            # If picking up from board, clear grid cells it was occupying
+                            self.clear_grid_cells(sigil_idx)
                         # Store the mouse offset from the first cell's center
                         # Pass whether it came from tray so we know to transition it to board
                         self.update_drag_offset(point, is_from_tray)
@@ -868,11 +871,11 @@ class Sigilboard(PygameWindow):
         if self.finish_countdown == 1:
             return self.close(True)
         if self.finish_countdown == 0:
-            # Count total cells covered by sigils
+            # Count total cells covered by sigils on the board
             total_sigil_cells = 0
             for sigil_idx in range(len(self.sigils)):
-                # Only count sigils that are on the board (not in tray)
-                if sigil_idx not in self.tray_sigils:
+                # Only count sigils that are on the board (not in tray and not currently selected/dragging)
+                if sigil_idx not in self.tray_sigils and sigil_idx != self.selected_sigil_index:
                     sigil = self.sigils[sigil_idx]
                     total_sigil_cells += len(sigil[0])
             
