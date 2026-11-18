@@ -748,6 +748,35 @@ class Sigilboard(PygameWindow):
         
         sigil[0] = rotated
     
+    def is_valid_placement(self, sigil_idx, grid_col, grid_row):
+        """Check if a placement is valid (no collisions, within bounds, and all cells within grid)"""
+        sigil = self.sigils[sigil_idx]
+        positions = sigil[0]
+        first_x, first_y = positions[0]
+        
+        # Check each cell of the tetromino
+        for x, y in positions:
+            cell_x = grid_col + (x - first_x)
+            cell_y = grid_row + (y - first_y)
+            
+            # Check bounds
+            if cell_x < 0 or cell_x >= self.x or cell_y < 0 or cell_y >= self.y:
+                return False
+            
+            # Check collision with existing tetromino
+            if self.grid[cell_y][cell_x] != " ":
+                return False
+        
+        return True
+    
+    def clear_grid_cells(self, sigil_idx):
+        """Clear grid cells marked for this sigil"""
+        sigil = self.sigils[sigil_idx]
+        for row in range(self.y):
+            for col in range(self.x):
+                if self.grid[row][col] == sigil_idx + 1:
+                    self.grid[row][col] = " "
+    
     def snap_to_grid(self, sigil_idx):
         sigil = self.sigils[sigil_idx]
         offset = sigil[2]
@@ -767,22 +796,27 @@ class Sigilboard(PygameWindow):
             grid_col = int((first_cell_center_x - self.grid_offset_x) / self.grid_scale)
             grid_row = int((first_cell_center_y - self.grid_offset_y) / self.grid_scale)
             
-            # Clamp to grid bounds
-            grid_col = max(0, min(self.x - 1, grid_col))
-            grid_row = max(0, min(self.y - 1, grid_row))
-            
-            # Update position so first cell aligns with grid
-            # offset = (grid_col - first_x) * grid_scale, (grid_row - first_y) * grid_scale
-            snap_offset_x = (grid_col - first_x) * self.grid_scale
-            snap_offset_y = (grid_row - first_y) * self.grid_scale
-            sigil[2] = (snap_offset_x, snap_offset_y)
-            
-            # Mark grid cells as occupied
-            for x, y in positions:
-                cell_x = grid_col + (x - first_x)
-                cell_y = grid_row + (y - first_y)
-                if 0 <= cell_x < self.x and 0 <= cell_y < self.y:
+            # Check if placement is valid (don't clamp yet - we want to validate exact placement)
+            if self.is_valid_placement(sigil_idx, grid_col, grid_row):
+                # Placement is valid - update position and mark grid cells
+                snap_offset_x = (grid_col - first_x) * self.grid_scale
+                snap_offset_y = (grid_row - first_y) * self.grid_scale
+                sigil[2] = (snap_offset_x, snap_offset_y)
+                
+                # Mark grid cells as occupied
+                for x, y in positions:
+                    cell_x = grid_col + (x - first_x)
+                    cell_y = grid_row + (y - first_y)
                     self.grid[cell_y][cell_x] = sigil_idx + 1
+            else:
+                # Invalid placement - return to tray
+                self.tray_sigils.append(sigil_idx)
+                # Reset position to tray default (will be drawn in tray)
+                sigil[2] = (0, 0)
+        else:
+            # Click was in tray area - just ensure it stays in tray
+            if sigil_idx not in self.tray_sigils:
+                self.tray_sigils.append(sigil_idx)
         
 
     def update_loop(self):
@@ -834,12 +868,18 @@ class Sigilboard(PygameWindow):
         if self.finish_countdown == 1:
             return self.close(True)
         if self.finish_countdown == 0:
-            for row in range(self.y):
-                for col in range(self.x):
-                    cell = self.grid[row][col]
-                    if cell == " ":
-                        return None
-            self.finish_countdown = 5
+            # Count total cells covered by sigils
+            total_sigil_cells = 0
+            for sigil_idx in range(len(self.sigils)):
+                # Only count sigils that are on the board (not in tray)
+                if sigil_idx not in self.tray_sigils:
+                    sigil = self.sigils[sigil_idx]
+                    total_sigil_cells += len(sigil[0])
+            
+            # Check if all grid cells are filled with sigils
+            grid_size = self.x * self.y
+            if total_sigil_cells >= grid_size:
+                self.finish_countdown = 5
 
 def create_moonpanel(width, height, title, color, difficulty, reward, time):
     panel = Moonpanel(width, height, title, color, difficulty, reward, time)
@@ -906,7 +946,7 @@ def create_cryptogram(difficulty, reward, timer):
     if cryprogram == "Moonpanel":
         create_moonpanel(600, 600, "Moonpanel Window", color, difficulty, reward*difficulty, 15+(difficulty*timer))
     elif cryprogram == "Sigilboard":
-        create_sigilboard(600, 700, "Sigilboard Window", color, difficulty, reward*difficulty, 25+(difficulty*timer))
+        create_sigilboard(600, 700, "Sigilboard Window", color, difficulty, reward*difficulty, 25+(2*difficulty*timer))
 
 
 if __name__ == '__main__':    
