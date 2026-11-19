@@ -11,6 +11,118 @@ timer = 10
 streak = 1
 coins = 0
 
+unlocked_cryptograms = ["Moonpanel"]
+total_cryptograms = ["Huegrid", "Moonpanel", "Sigilboard"]
+
+active_boosters = {"Duration_Booster/1": 0, "Duration_Booster/2": 0, "Duration_Booster/3": 0, "Duration_Booster/4": 0,
+                   "Difficulty_Booster/1": 0, "Difficulty_Booster/2": 0, "Difficulty_Booster/3": 0, "Difficulty_Booster/4": 0}
+
+active_upgrades = []
+
+class ShopItem:
+    def __init__(self, name, cost, display_name=None,item_type="cryptogram", description="", stock=-1, restock_time=1, duration=1, once_time=False, prerequisite=None):
+        self.name = name
+        self.display_name = display_name if display_name else name
+        self.cost = cost
+        self.type = item_type
+        self.description = description
+        self.max_stock = stock
+        self.stock = stock
+        self.restock_time = restock_time
+        self.duration = duration
+        self.once_time = once_time
+        self.bought = 0
+        self.restock_counter = 0
+        self.prerequisite = prerequisite
+
+    def purchase(self):
+        global coins, unlocked_cryptograms
+        if self.prerequisite:
+            for item in shop_items:
+                if item.name == self.prerequisite and item.bought == 0:
+                    print(f"Prerequisite {item.display_name} not purchased.")
+                    return False
+        if self.once_time and self.bought > 0:
+            print(f"{self.display_name} can only be purchased once.")
+            return False
+        if self.stock == 0:
+            if self.restock_counter < self.restock_time:
+                print(f"{self.name} is out of stock, wait {self.restock_time - self.restock_counter} puzzles")
+                return False
+            else:
+                self.stock = -1 if self.stock == -1 else self.stock
+                self.restock_counter = 0
+        if coins < self.cost:
+            print(f"Not enough coins to purchase {self.display_name}.")
+            return False
+        coins -= self.cost
+        if self.stock > 0:
+            self.stock -= 1
+        self.bought += 1
+        if self.type == "cryptogram":
+            unlocked_cryptograms.append(self.name)
+            print(f"Unlocked cryptogram: {self.display_name}")
+            print(f"{self.description}")
+        elif self.type == "booster":
+            if self.name in active_boosters:
+                active_boosters[self.name] += self.duration
+            else:
+                active_boosters[self.name] = self.duration
+            print(f"Purchased booster: {self.display_name}, for {self.duration} puzzles")
+            print(f"{self.description}")
+        elif self.type == "upgrade":
+            print(f"Purchased upgrade: {self.display_name}")
+            print(f"{self.description}")
+            active_upgrades.append(self.name)
+        elif self.type == "instant":
+            print(f"Purchased instant item: {self.display_name}")
+            print(f"{self.description}")
+            effect, strength = self.name.split("/")
+            if "Cooldown_Shorten" in self.name:
+                print(f"Effect: Reduce cooldown by {float(strength) * 100}%")
+                max_cooldown = max_cooldown * float(strength)
+        
+        return True
+
+shop_items = [
+    ShopItem("Huegrid", 10, display_name="Huegrid", description="Unlocks a new color based cryptogram.", item_type="cryptogram", once_time=True),
+    ShopItem("Sigilboard", 60, display_name="Sigilboard", description="Unlocks a new symbol based cryptogram.", item_type="cryptogram", once_time=True),
+
+    ShopItem("Moonpanel_dots", 45, display_name="Lunar Shadograph", description="Empowers the moonpanel cryptogram, requiring new paths.", item_type="upgrade", once_time=True),
+    ShopItem("Moonpanel_orbits", 300, display_name="Eclipse Phasemesh", description="Maximise the moonpanel cryptogram, necessitating new symbols.", item_type="upgrade", once_time=True, prerequisite="Moonpanel_dots"),
+
+    ShopItem("Huegrid_pins", 250, display_name="Prismatic Refraction", description="Empowers the huegrid cryptogram, increacing the useable colors.", item_type="upgrade", once_time=True, prerequisite="Huegrid"),
+    ShopItem("Huegrid_hexboard", 3000, display_name="Chromatic Cascade", description="Maximise the huegrid cryptogram, warrenting new color meshes.", item_type="upgrade", once_time=True, prerequisite="Huegrid_pins"),
+
+    ShopItem("Sigilboard_quintominos", 200, display_name="Symbolic Expansion", description="Empowers the sigilboard cryptogram, increasing symbol complexity.", item_type="upgrade", once_time=True, prerequisite="Sigilboard"),
+    ShopItem("Sigilboard_halfstage", 1000, display_name="Eclidian Labyrinth", description="Maximise the sigilboard cryptogram, demanding intricate symbol placements.", item_type="upgrade", once_time=True, prerequisite="Sigilboard_quintominos"),
+
+    ShopItem("Duration_Booster/1.5", 20, display_name="Dim Duralyte", item_type="booster", description="A calming glow makes time pass slower.",
+              stock = 8, restock_time=3, duration=4),
+    ShopItem("Duration_Booster/2", 60, display_name="Duralyte", item_type="booster", description="An intense glow makes time pass even slower.",
+              stock = 4, restock_time=5, duration=2, prerequisite="Duration_Booster/1.5"),
+    ShopItem("Duration_Booster/4", 180, display_name="Bright Duralyte", item_type="booster", description="A powerful glow makes time pass extremely slowly.",
+              stock = 2, restock_time=7, duration=1, prerequisite="Duration_Booster/2"),
+    ShopItem("Duration_Booster/10", 540, display_name="Blinding Duralyte", item_type="booster", description="An overwhelming glow makes time nearly freeze.",
+              stock = 1, restock_time=10, duration=1, prerequisite="Duration_Booster/4"),
+
+    ShopItem("Difficulty_Booster/1", 40, display_name="Shadestone Fragment", item_type="booster", description="A ominous dark fragment, making cryptograms more complex.",
+                stock = 6, restock_time=4, duration=5),
+    ShopItem("Difficulty_Booster/2", 160, display_name="Shadestone Shard", item_type="booster", description="A cursed dark rock, revealing hidden details.",
+                stock = 5, restock_time=6, duration=3, prerequisite="Difficulty_Booster/1"),
+    ShopItem("Difficulty_Booster/3", 640, display_name="Shadestone", item_type="booster", description="An evil dark stone, finding secret difficult complexities.",
+                stock = 2, restock_time=8, duration=2, prerequisite="Difficulty_Booster/2"),
+    ShopItem("Difficulty_Booster/5", 2560, display_name="Shadestone Core", item_type="booster", description="A dark relic eminating malice, corrupting complex cryptograms.",
+                stock = 1, restock_time=14, duration=1, prerequisite="Difficulty_Booster/3"),
+
+    ShopItem("Cooldown_Shorten/.8", 60, display_name="Sugar Faedust", item_type="instant", description="A aetherial gas that reduces the cooldown of cryptograms.",
+             stock = 3, restock_time=5),
+    ShopItem("Cooldown_Shorten/.5", 300, display_name="Coffee Aerosol", item_type="instant", description="A potent aetherial gas that greatly reduces the cooldown of cryptograms.",
+             stock = 2, restock_time=8, prerequisite="Cooldown_Shorten/.8"),
+    ShopItem("Cooldown_Shorten/.3", 900, display_name="Caffeination Aura", item_type="instant", description="An extremely potent aetherial gas that nearly eliminates the cooldown of cryptograms.",
+             stock = 1, restock_time=10, prerequisite="Cooldown_Shorten/.5"),
+]
+
 class PygameWindow:
     def __init__(self, width, height, name="Pygame Window", color = (150, 150, 150), difficulty=1, reward=1, time=60):
         self.width = width
@@ -20,6 +132,7 @@ class PygameWindow:
         self.difficulty = difficulty
         self.reward = reward
         self.time = time
+        self.max_time = time
         pygame.init()
         self.screen = pygame.display.set_mode((self.width, self.height))
         pygame.display.set_caption(self.name)
@@ -58,18 +171,270 @@ class PygameWindow:
         return (r, g, b)
 
 
+class Huegrid(PygameWindow):
+    def __init__(self, width, height, name="Cryptogram", color=(150, 150, 150), difficulty=1, reward=1, time=60):
+        super().__init__(width, height, name, color, difficulty, reward, time)
+        if difficulty < 10:
+            self.x = min(3+difficulty,8)
+            self.y = min(3+difficulty,8)
+        elif difficulty < 27:
+            self.x = min(3+int(difficulty/2),12)
+            self.y = min(3+int(difficulty/2),12)
+        elif difficulty < 75:
+            self.x = min(3+int(difficulty/3),18)
+            self.y = min(3+int(difficulty/3),18)
+        else:
+            self.x = (3+int(difficulty/5))
+            self.y = (3+int(difficulty/5))
+        self.grid = []
+        self.perfect_grid = []
+        self.selected = None
+        if "Huegrid_pins" in active_upgrades:
+            self.reward *= 1.5
+        if "Huegrid_hexboard" in active_upgrades:
+            self.reward *= 2
+            self.hex_grid = []
+            self.perfect_hex_grid = []
+            self.hex_selected = None
+        print(f"Created Huegrid with difficulty {self.difficulty} and reward {self.reward}")
+
+    def is_cell_pinned(self, row, col):
+        """Check if a cell is pinned (cannot be shuffled)"""
+        # If pins upgrade is NOT active, pin all outer cells
+        if "Huegrid_pins" not in active_upgrades:
+            if row == 0 or row == self.y - 1 or col == 0 or col == self.x - 1:
+                return True
+        # If pins upgrade IS active, only pin corners and middle cells on sides
+        else:
+            # Check if on top or bottom row
+            if row == 0 or row == self.y - 1:
+                if col == 0 or col == self.x - 1:
+                    return True  # Corners
+                # Middle cells: for even widths, pin both middle cells
+                if self.x % 2 == 0:
+                    if col == self.x // 2 - 1 or col == self.x // 2:
+                        return True
+                else:
+                    if col == self.x // 2:
+                        return True
+            # Check if on left or right column
+            if col == 0 or col == self.x - 1:
+                if row == 0 or row == self.y - 1:
+                    return True  # Corners (already checked above)
+                # Middle cells: for even heights, pin both middle cells
+                if self.y % 2 == 0:
+                    if row == self.y // 2 - 1 or row == self.y // 2:
+                        return True
+                else:
+                    if row == self.y // 2:
+                        return True
+        return False
+
+    def generate_grid(self):
+        red_step = 255 // max(1, self.x - 1)
+        green_step = 255 // max(1, self.y - 1)
+        blue_step = 255 // max(1, self.x - 1)
+        y_step = -1
+        for row in range(self.y):
+            y_step += 1
+            x_step = -1
+            row = []
+            perfect_row = []
+            if "Huegrid_hexboard" in active_upgrades:
+                hex_row = []
+                perfect_hex_row = []
+            for col in range(self.x):
+                x_step += 1
+                r = max(0, min(255, x_step * red_step))
+                g = max(0, min(255, y_step * green_step))
+                b = max(0, min(255, 255 - round((x_step+ y_step)/2 * blue_step)))
+                color = (r, g, b)
+                if "Huegrid_hexboard" in active_upgrades:
+                    hex_r = max(0, min(255, 255 - (x_step * red_step)))
+                    hex_g = max(0, min(255, 255 - (y_step * green_step)))
+                    hex_b = max(0, min(255, round((x_step+ y_step)/2 * blue_step)))
+                    hex_color = (hex_r, hex_g, hex_b)
+                    hex_row.append(hex_color)
+                    perfect_hex_row.append(hex_color)
+                row.append(color)
+                perfect_row.append(color)
+            self.grid.append(row)
+            self.perfect_grid.append(perfect_row)
+            if "Huegrid_hexboard" in active_upgrades:
+                self.hex_grid.append(hex_row)
+                self.perfect_hex_grid.append(perfect_hex_row)
+
+        color_list = []
+        for row in range(self.y):
+            for col in range(self.x):
+                if not self.is_cell_pinned(row, col):
+                    color_list.append(self.grid[row][col])
+
+        if "Huegrid_hexboard" in active_upgrades:
+            hex_color_list = []
+            for row in range(self.y):
+                for col in range(self.x):
+                    if not self.is_cell_pinned(row, col):
+                        hex_color_list.append(self.hex_grid[row][col])
+            random.shuffle(hex_color_list)
+            for row in range(self.y):
+                for col in range(self.x):
+                    if not self.is_cell_pinned(row, col):
+                        self.hex_grid[row][col] = hex_color_list.pop()
+
+        random.shuffle(color_list)
+
+        for row in range(self.y):
+            for col in range(self.x):
+                if not self.is_cell_pinned(row, col):
+                    self.grid[row][col] = color_list.pop()
+
+    def draw_loop(self):
+        cell_width = self.screen.get_width() // self.x
+        cell_height = self.screen.get_height() // self.y
+        for row in range(self.y):
+            for col in range(self.x):
+                color = self.grid[row][col]
+                pygame.draw.rect(self.screen, color, (col * cell_width, row * cell_height, cell_width, cell_height))
+                if self.selected == (row, col):
+                    pygame.draw.rect(self.screen, (200, 200, 0), (col * cell_width, row * cell_height, cell_width, cell_height), 3)
+        
+        if "Huegrid_hexboard" in active_upgrades:
+            for row in range(self.y):
+                for col in range(self.x):
+                    hex_color = self.hex_grid[row][col]
+                    pygame.draw.circle(self.screen, hex_color, (col * cell_width + cell_width // 2, row * cell_height + cell_height // 2), min(cell_width, cell_height) // 4)
+                    if self.hex_selected == (row, col):
+                        pygame.draw.circle(self.screen, (200, 200, 0), (col * cell_width + cell_width // 2, row * cell_height + cell_height // 2), min(cell_width, cell_height) // 4, 3)
+        
+        # Draw pins indicator on all pinned cells
+        for row in range(self.y):
+            for col in range(self.x):
+                if self.is_cell_pinned(row, col):
+                    pygame.draw.circle(self.screen, (0, 0, 0), (col * cell_width + cell_width // 2, row * cell_height + cell_height // 2), min(cell_width, cell_height) // 16)
+        
+        font = pygame.font.SysFont(None, 36)
+        time_text = font.render(f"Time: {round(self.time, 2)}", True, (255, 255, 255))
+        self.screen.blit(time_text, (10, 10))
+        if self.finish_countdown > 0:
+            tint_surface = pygame.Surface((self.width, self.height))
+            tint_surface.set_alpha(128)  # Adjust the alpha value as needed
+            tint_surface.fill((0, 255, 0))  # green tint
+            self.screen.blit(tint_surface, (0, 0))    
+
+        pygame.display.flip()
+
+    def event_loop(self, event):
+        if self.finish_countdown == 0:
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                x, y = pygame.mouse.get_pos()
+                col = int(x / (self.width // self.x))
+                row = int(y / (self.height // self.y))
+                
+                # Determine which grid to use if hexboard is active
+                use_hex_grid = False
+                if "Huegrid_hexboard" in active_upgrades:
+                    cell_width = self.width // self.x
+                    cell_height = self.height // self.y
+                    center_x = col * cell_width + cell_width // 2
+                    center_y = row * cell_height + cell_height // 2
+                    click_distance = ((x - center_x) ** 2 + (y - center_y) ** 2) ** 0.5
+                    inner_radius = min(cell_width, cell_height) // 4
+                    # Click on inner circle uses hex grid
+                    if click_distance <= inner_radius:
+                        use_hex_grid = True
+                
+                if use_hex_grid:
+                    if (row, col) == self.hex_selected:
+                        self.hex_selected = None
+                    elif self.hex_selected is None:
+                        if self.is_cell_pinned(row, col):
+                            self.hex_selected = None
+                            return
+                        self.hex_selected = (row, col)
+                    else:
+                        if self.is_cell_pinned(row, col):
+                            self.hex_selected = None
+                            return
+                        self.swap_hex_cells(self.hex_selected, (row, col))
+                        self.hex_selected = None
+                else:
+                    if (row, col) == self.selected:
+                        self.selected = None
+                    elif self.selected is None:
+                        if self.is_cell_pinned(row, col):
+                            self.selected = None
+                            return
+                        self.selected = (row, col)
+                    else:
+                        if self.is_cell_pinned(row, col):
+                            self.selected = None
+                            return
+                        self.swap_cells(self.selected, (row, col))
+                        self.selected = None
+    
+    def swap_cells(self, cell1, cell2):
+        row1, col1 = cell1
+        row2, col2 = cell2
+        self.grid[row1][col1], self.grid[row2][col2] = self.grid[row2][col2], self.grid[row1][col1]
+
+    def swap_hex_cells(self, cell1, cell2):
+        row1, col1 = cell1
+        row2, col2 = cell2
+        self.hex_grid[row1][col1], self.hex_grid[row2][col2] = self.hex_grid[row2][col2], self.hex_grid[row1][col1]
+
+    def update_loop(self):
+        self.time -= 1/60
+        if self.time <= 0:
+            return self.close(False)
+        if self.finish_countdown > 0:
+            self.finish_countdown -= 1
+        if self.finish_countdown == 1:
+            return self.close(True)
+        if self.finish_countdown == 0:
+            completed = True
+            # Check the regular grid
+            for row in range(self.y):
+                for col in range(self.x):
+                    if self.grid[row][col] != self.perfect_grid[row][col]:
+                        completed = False
+            # If hexboard is active, also check the hex grid
+            if "Huegrid_hexboard" in active_upgrades and completed:
+                for row in range(self.y):
+                    for col in range(self.x):
+                        if self.hex_grid[row][col] != self.perfect_hex_grid[row][col]:
+                            completed = False
+            if completed:
+                self.finish_countdown = 15
+        
 class Moonpanel(PygameWindow):
     def __init__(self, width, height, name="Cryptogram", color=(150, 150, 150), difficulty=1, reward=1, time=60):
         super().__init__(width, height, name, color, difficulty, reward, time)
-        self.x = 2+difficulty*2
-        self.y = 2+difficulty*2
+        if self.difficulty < 8:
+            self.x = min(2+self.difficulty*2, 10)
+            self.y = min(2+self.difficulty*2, 10)
+        elif self.difficulty < 28:
+            self.x = min(2+self.difficulty, 16)
+            self.y = min(2+self.difficulty, 16)
+        elif self.difficulty < 100:
+            self.x = min(2+self.difficulty/2, 22)
+            self.y = min(2+self.difficulty/2, 22)
+        else:
+            self.x = 2+self.difficulty/5
+            self.y = 2+self.difficulty/5
         self.grid = []
         self.dots = []
+        self.orbits = []  # List of orbit squares with their required crossing counts
         self.visited = []
         self.position = (0, 0)
         self.possible_moves = []
         self.animation_frames = 0
         self.mouse_down = False
+        if "Moonpanel_dots" in active_upgrades:
+            self.reward *= 1.5
+        if "Moonpanel_orbits" in active_upgrades:
+            self.reward *= 2
+        print(f"Created Moonpanel with difficulty {self.difficulty} and reward {self.reward}")
 
     def check_available_moves(self, visited, position):
         row, col = position
@@ -221,16 +586,53 @@ class Moonpanel(PygameWindow):
                 if (row, col) in path:
                     if print_test:
                         print(f"Marking path cell at: ({row}, {col})")
-                    self.grid[row][col] = random.choice([" ", " ", "o"])
-                    if self.grid[row][col] == "o":
-                        self.dots.append((row, col))
+                    # Only add dots if the moonpanel_dots upgrade is active
+                    if "Moonpanel_dots" in active_upgrades:
+                        self.grid[row][col] = random.choice([" ", " ", "o"])
+                        if self.grid[row][col] == "o":
+                            self.dots.append((row, col))
+                    else:
+                        self.grid[row][col] = " "
                 else:
                     if print_test:
                         print(f"Marking non-path cell at: ({row}, {col})")
                     self.grid[row][col] = random.choice([" ", " ", " ", " ", "x"])
 
+        # Add orbit squares if the moonpanel_orbits upgrade is active
+        if "Moonpanel_orbits" in active_upgrades:
+            self.add_orbit_squares(path)
+
         self.grid[0][0] = "S"
         self.grid[self.y-1][self.x-1] = "E"
+
+    def add_orbit_squares(self, path):
+        # Create orbit squares between groups of 4 cells with 1 in 5 chance
+        # An orbit is positioned at the center of 4 adjacent cells (forming a 2x2 grid)
+        for row in range(self.y - 1):
+            for col in range(self.x - 1):
+                # 1 in 5 chance to create an orbit for this group
+                if random.random() < 0.2:
+                    # Four cells forming a 2x2 group
+                    four_cells = [(row, col), (row, col + 1), (row + 1, col), (row + 1, col + 1)]
+                    
+                    # Count how many of these 4 cells are on the path
+                    cells_on_path = sum(1 for cell in four_cells if cell in path)
+                    
+                    orbit_id = f"orbit_{row}_{col}"
+                    if cells_on_path > 0:
+                        # If cells are on the path, required crossings = number of cells on path
+                        required_crossings = cells_on_path
+                    else:
+                        # If no cells on path, it's a hollow square (required = 0)
+                        required_crossings = 0
+                    
+                    self.orbits.append({
+                        "id": orbit_id,
+                        "row": row,
+                        "col": col,
+                        "cells": four_cells,
+                        "required_crossings": required_crossings
+                    })
 
     def draw_loop(self):
         self.screen.fill(self.brighten_color(.6))
@@ -337,6 +739,40 @@ class Moonpanel(PygameWindow):
                     diamond
                 )
 
+        # Draw orbit squares
+        if "Moonpanel_orbits" in active_upgrades:
+            for orbit in self.orbits:
+                row, col = orbit["row"], orbit["col"]
+                # Position is at the center of the 2x2 group
+                center_x = col * x_spacing + x_spacing
+                center_y = row * y_spacing + y_spacing
+                
+                # Count how many cells around this orbit have been visited
+                visited_count = sum(1 for cell in orbit["cells"] if cell in self.visited)
+                
+                # Draw a small square for each required crossing
+                square_size = min(x_spacing, y_spacing) // 10
+                
+                if orbit["required_crossings"] == 0:
+                    # Draw a hollow square if no cells on path
+                    square_pos = (center_x - square_size // 2, center_y - square_size // 2)
+                    pygame.draw.rect(
+                        self.screen,
+                        self.shift_color(self.brighten_color(.5), b_shift=50),
+                        (*square_pos, square_size, square_size),
+                        2  # Draw only the border (hollow)
+                    )
+                else:
+                    # Draw filled squares for each required crossing
+                    for i in range(orbit["required_crossings"]):
+                        offset = (i - (orbit["required_crossings"] - 1) / 2) * (square_size + 2)
+                        square_pos = (center_x + offset - square_size // 2, center_y - square_size // 2)
+                        pygame.draw.rect(
+                            self.screen,
+                            self.shift_color(self.brighten_color(.5), b_shift=50),
+                            (*square_pos, square_size, square_size)
+                        )
+
         if self.mouse_down:
             for cell in self.possible_moves:
                 row, col = cell
@@ -388,12 +824,25 @@ class Moonpanel(PygameWindow):
         if self.position not in self.visited:
             self.visited.append(self.position)
         if self.grid[self.position[0]][self.position[1]] == "E" and self.finish_countdown == 0:
-            dot_missed = False
-            for dot in self.dots:
-                if not dot in self.visited:
-                    dot_missed = True
-            if not dot_missed:
-                self.finish_countdown = 5
+            # Check if all dots have been visited (only if Moonpanel_dots is active)
+            dot_check_passed = True
+            if "Moonpanel_dots" in active_upgrades:
+                for dot in self.dots:
+                    if not dot in self.visited:
+                        dot_check_passed = False
+                        break
+            
+            # Check if all orbits have the correct number of visited cells (only if Moonpanel_orbits is active)
+            orbit_check_passed = True
+            if "Moonpanel_orbits" in active_upgrades:
+                for orbit in self.orbits:
+                    visited_count = sum(1 for cell in orbit["cells"] if cell in self.visited)
+                    if visited_count != orbit["required_crossings"]:
+                        orbit_check_passed = False
+                        break
+            
+            if dot_check_passed and orbit_check_passed:
+                self.finish_countdown = 15
         self.time -= 1/60
         if self.time <= 0:
             return self.close(False)
@@ -434,8 +883,25 @@ class Sigilboard(PygameWindow):
     def __init__(self, width, height, name="Cryptogram", color=(150, 150, 150), difficulty=1, reward=1, time=60):
         super().__init__(width, height, name, color, difficulty, reward, time) 
         self.sigils = []
-        self.sigil_amount = difficulty + 3
-        self.grid_size = 12 + difficulty * 4
+        if self.difficulty < 10:
+            self.sigil_amount = min(difficulty + 3, 8)
+            self.grid_size = min(12 + difficulty * 4, self.sigil_amount * 4)
+        elif self.difficulty < 24:
+            self.sigil_amount = min(difficulty//2 + 3, 15)
+            self.grid_size = min(12 + difficulty * 2, self.sigil_amount * 4)
+        else:
+            self.sigil_amount = difficulty//4 + 3
+            self.grid_size = 12 + difficulty
+
+        if "Sigilboard_quintominos" in active_upgrades:
+            self.reward *= 1.5
+        
+        # Check if halfstage upgrade is active - if so, double the grid size
+        self.halfstage_active = "Sigilboard_halfstage" in active_upgrades
+        if self.halfstage_active:
+            self.reward *= 2
+            self.grid_size *= 2
+        
         print(self.grid_size)
         print(self.sigil_amount)
         self.x = random.randint(3,(self.grid_size)//3)
@@ -451,6 +917,8 @@ class Sigilboard(PygameWindow):
         self.tetrimino_colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255),
                                  (255, 255, 0), (0, 255, 255), (255, 0, 255),
                                  (128, 128, 128), (64, 64, 64), (200, 200, 200)]
+
+        print(f"Playing Sigilboard with difficulty {self.difficulty} and reward {self.reward}")
 
     def avalible_positions(self, path, position):
         col, row = position
@@ -501,10 +969,11 @@ class Sigilboard(PygameWindow):
                 break
             
             # Build a tetrinomino starting from this position
-            # Try to fill remaining cells, but limit to 4 cells max
+            # Try to fill remaining cells, but limit to 4 cells max (or 5 if quintominos upgrade is active)
             tetrinomino = [(start_col, start_row)]
             remaining_cells = grid_size - total_cells - 1  # -1 for the starting cell
-            max_tetromino_size = min(4, remaining_cells) if remaining_cells > 0 else 1
+            max_size = 5 if "Sigilboard_quintominos" in active_upgrades else 4
+            max_tetromino_size = min(max_size, remaining_cells) if remaining_cells > 0 else 1
             max_attempts = 5
             attempt = 0
             
@@ -535,16 +1004,60 @@ class Sigilboard(PygameWindow):
                 for col, row in tetrinomino:
                     relative_coords.append((col - base_col, row - base_row))
                 
-                # Create sigil: (coordinates, color, position_in_tray)
-                sigil = [relative_coords, random.choice(self.tetrimino_colors), (0, 0)]
-                self.sigils.append(sigil)
-                self.tray_sigils.append(len(self.sigils) - 1)
-                
-                # Mark grid cells as filled
-                for col, row in tetrinomino:
-                    self.grid[row][col] = sigil_id
-                sigil_id += 1
-                total_cells += len(tetrinomino)
+                # If halfstage is active and sigil is large enough, potentially split it
+                if self.halfstage_active and len(relative_coords) >= 3 and random.random() < 0.25:
+                    # Split into two parts
+                    mid = len(relative_coords) // 2
+                    part1_coords = relative_coords[:mid]
+                    part2_coords = relative_coords[mid:]
+                    
+                    # Create parts with their own color
+                    color = random.choice(self.tetrimino_colors)
+                    parts = []
+                    
+                    # Part 1: use as is
+                    parts.append(part1_coords)
+                    
+                    # Part 2: normalize coordinates
+                    if part2_coords:
+                        min_x = min(p[0] for p in part2_coords)
+                        min_y = min(p[1] for p in part2_coords)
+                        part2_coords = [(x - min_x, y - min_y) for x, y in part2_coords]
+                        parts.append(part2_coords)
+                    
+                    # Add both parts as separate sigils with same color
+                    part_index = 0
+                    for part_coords in parts:
+                        sigil = [part_coords, color, (0, 0)]
+                        self.sigils.append(sigil)
+                        self.tray_sigils.append(len(self.sigils) - 1)
+                        
+                        # Mark grid cells as filled using original tetrinomino coordinates
+                        if part_index == 0:
+                            # First part uses original tetrinomino indices
+                            for i in range(len(part1_coords)):
+                                col, row = tetrinomino[i]
+                                self.grid[row][col] = sigil_id
+                        else:
+                            # Second part uses remaining tetrinomino indices
+                            for i, (x, y) in enumerate(part_coords):
+                                # Use the original cells from tetrinomino
+                                col, row = tetrinomino[mid + i]
+                                self.grid[row][col] = sigil_id
+                        sigil_id += 1
+                        total_cells += len(part_coords)
+                        part_index += 1
+                else:
+                    # Normal sigil creation
+                    sigil = [relative_coords, random.choice(self.tetrimino_colors), (0, 0)]
+                    self.sigils.append(sigil)
+                    self.tray_sigils.append(len(self.sigils) - 1)
+                    
+                    # Mark grid cells as filled
+                    for col, row in tetrinomino:
+                        self.grid[row][col] = sigil_id
+                    sigil_id += 1
+                    total_cells += len(tetrinomino)
 
         # Clear grid marks
         for row in range(self.y):
@@ -882,21 +1395,73 @@ class Sigilboard(PygameWindow):
             # Check if all grid cells are filled with sigils
             grid_size = self.x * self.y
             if total_sigil_cells >= grid_size:
-                self.finish_countdown = 5
+                self.finish_countdown = 15
 
 def create_moonpanel(width, height, title, color, difficulty, reward, time):
     panel = Moonpanel(width, height, title, color, difficulty, reward, time)
     panel.generate_grid()
     windows.append(panel)
-    print(f"\nCreated Moonpanel with difficulty {difficulty} and reward {reward}")
+    print(f"\nCreated Moonpanel with difficulty {difficulty}")
     return panel
 
 def create_sigilboard(width, height, title, color, difficulty, reward, time):
     board = Sigilboard(width, height, title, color, difficulty, reward, time)
     board.generate_grid()
     windows.append(board)
-    print(f"\nCreated Sigilboard with difficulty {difficulty} and reward {reward}")
+    print(f"\nCreated Sigilboard with difficulty {difficulty}")
     return board
+
+def create_huegrid(width, height, title, color, difficulty, reward, time):
+    grid = Huegrid(width, height, title, color, difficulty, reward, time)
+    grid.generate_grid()
+    windows.append(grid)
+    print(f"\nCreated Huegrid with difficulty {difficulty}")
+    return grid
+
+def open_shop():
+    global shop_items
+    shop_open = True
+    while shop_open:
+        print("\n\nSHOP")
+        print("Enter the item name to purchase, or exit to leave the shop.")
+        print(f"Coins: {coins}")
+        for item in shop_items:
+            show_item = True
+            if item.once_time and item.bought > 0:
+                continue
+            if item.prerequisite:
+                for prereq_item in shop_items:
+                    if prereq_item.name == item.prerequisite and prereq_item.bought == 0:
+                        if prereq_item.prerequisite:
+                            for prereq_prereq_item in shop_items:
+                                if prereq_prereq_item.name == prereq_item.prerequisite and prereq_prereq_item.bought == 0:
+                                    if show_item:
+                                        print(f"???? - Requires unknown prerequisite")
+                                        show_item = False
+                        if show_item:
+                            print(f"???? - Requires {prereq_item.display_name}")
+                            show_item = False
+            if item.stock == 0:
+                if show_item:
+                    print(f"{item.display_name} - Out of stock.")
+                    show_item = False
+            if show_item:
+                print(f"{item.display_name} - {item.description} - Cost: {item.cost}")
+                show_item = False
+        print()
+        choice = input("Your choice: ").strip()
+        if choice.lower() == "exit":
+            shop_open = False
+            return
+        for item in shop_items:
+            if item.display_name.lower() == choice.lower():
+                if item.purchase():
+                    print(f"Purchased {item.display_name}.\n")
+                else:
+                    print(f"Could not purchase {item.display_name}.\n")
+                break
+        else:
+            print("Item not found.\n")
 
 def run_pygame_loop():
     global max_cooldown, cooldown, difficulty, reward, timer, streak, coins
@@ -921,9 +1486,17 @@ def run_pygame_loop():
                 print(f"Cryptocoins: {coins}\n")
                 streak += 1
                 difficulty += .1*streak
-                max_cooldown = max_cooldown * (1+(streak/5))
+                time_factor = window.time / window.max_time
+                time_factor = 1.6 - time_factor
+                max_cooldown = (max_cooldown * (1+(streak/5))) * time_factor
                 reward += streak
                 cooldown = max_cooldown
+                for item in shop_items:
+                    item.restock_counter += 1
+                    if item.restock_counter >= item.restock_time:
+                        if item.stock != -1:
+                            item.stock = min(item.stock + 1, item.max_stock)
+                        item.restock_counter = 0
             else:
                 print("Try Again!\n")
                 reward = max(1, reward - streak)
@@ -939,7 +1512,15 @@ def run_pygame_loop():
 
 def create_cryptogram(difficulty, reward, timer):
     difficulty = round(difficulty)
-    cryprogram = random.choice(["Moonpanel", "Sigilboard"])
+    for booster in active_boosters:
+        if active_boosters[booster] > 0:
+            booster_type, booster_level = booster.split("/")
+            if booster_type == "Duration_Booster":
+                timer *= float(booster_level)
+            elif booster_type == "Difficulty_Booster":
+                difficulty += int(booster_level)
+            active_boosters[booster] -= 1
+    cryprogram = random.choice(unlocked_cryptograms)
     color = random.choice([(70, 70, 130), (70, 130, 70), (130, 70, 70),
                            (130, 130, 70), (130, 70, 130), (70, 130, 130), 
                            (70, 70, 70), (110, 110, 110), (130, 130, 130),
@@ -950,6 +1531,8 @@ def create_cryptogram(difficulty, reward, timer):
         create_moonpanel(600, 600, "Moonpanel Window", color, difficulty, reward*difficulty, 15+(difficulty*timer))
     elif cryprogram == "Sigilboard":
         create_sigilboard(600, 700, "Sigilboard Window", color, difficulty, reward*difficulty, 25+(2*difficulty*timer))
+    elif cryprogram == "Huegrid":
+        create_huegrid(600, 600, "Huegrid Window", color, difficulty, reward*difficulty, 20+(difficulty*timer))
 
 
 if __name__ == '__main__':    
@@ -975,4 +1558,7 @@ if __name__ == '__main__':
             cooldown -= 1
             time.sleep(1)
             if cooldown <= 0:
+                temp = input("Press Enter to start the next cryptogram or type \"shop\" to access the shop: ")
+                if temp.lower() == "shop":
+                    open_shop()  # Assuming there is a function to open the shop
                 create_cryptogram(difficulty, reward, timer)
