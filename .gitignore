@@ -221,3 +221,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+
+# Savedata and Usermade files
+savedata/current_run.txt
+assets/pygame_drawing_saver.py

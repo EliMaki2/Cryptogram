@@ -1,0 +1,55 @@
+# Never edited by game, replace current run with this to reset savedata
+Unlocked Cryptograms:Moonpanel,
+Active Upgrades:
+Active Boosters:Duration_Booster/1.5*0,Duration_Booster/2*0,Duration_Booster/4*0,Duration_Booster/10*0,Difficulty_Booster/1*0,Difficulty_Booster/2*0,Difficulty_Booster/3*0,Difficulty_Booster/5*0,Moonpanel_Luck/.2*0,Moonpanel_Luck/.5*0,Moonpanel_Luck/.8*0,Moonpanel_Luck/-.4*0,Huegrid_Luck/.2*0,Huegrid_Luck/.5*0,Huegrid_Luck/.8*0,Huegrid_Luck/-.4*0,Sigilboard_Luck/.2*0,Sigilboard_Luck/.5*0,Sigilboard_Luck/.8*0,Sigilboard_Luck/-.4*0
+Coins: 0
+Max Cooldown: 10
+Current Cooldown: 10
+Streak: 1
+Difficulty: 1
+Reward: 1
+Timer: 10
+Shop Items
+# file name, cost, display name, type, description, stock, max stock, restock time, duration, once time, bought, restock counter, prerequisite
+Huegrid,10,Huegrid,cryptogram,Unlocks a new color based cryptogram.,-1,-1,1,1,True,0,0,None
+Sigilboard,60,Sigilboard,cryptogram,Unlocks a new symbol based cryptogram.,-1,-1,1,1,True,0,0,None
+
+Moonpanel_dots,45,Lunar Shadograph,upgrade,Empowers the moonpanel cryptogram requiring new paths.,-1,-1,1,1,True,0,0,None
+Moonpanel_orbits,300,Eclipse Phasemesh,upgrade,Maximise the moonpanel cryptogram necessitating new symbols.,-1,-1,1,1,True,0,0,Moonpanel_dots
+
+Huegrid_pins,250,Prismatic Refraction,upgrade,Empowers the huegrid cryptogram increacing the useable colors.,-1,-1,1,1,True,0,0,Huegrid
+Huegrid_hexboard,3000,Chromatic Cascade,upgrade,Maximise the huegrid cryptogram warrenting new color meshes.,-1,-1,1,1,True,0,0,Huegrid_pins
+
+Sigilboard_quintominos,200,Symbolic Expansion,upgrade,Empowers the sigilboard cryptogram increasing symbol complexity.,-1,-1,1,1,True,0,0,Sigilboard
+Sigilboard_halfstage,1000,Eclidian Labyrinth,upgrade,Maximise the sigilboard cryptogram demanding intricate symbol placements.,-1,-1,1,1,True,0,0,Sigilboard_quintominos
+
+Duration_Booster/1.5,20,Dim Duralyte,booster,A calming glow makes time pass slower.,8,8,3,5,False,0,0,None
+Duration_Booster/2,60,Duralyte,booster,An intense glow makes time pass even slower.,4,4,5,2,False,0,0,Duration_Booster/1.5
+Duration_Booster/4,180,Bright Duralyte,booster,A powerful glow makes time pass extremely slowly.,2,2,7,1,False,0,0,Duration_Booster/2
+Duration_Booster/10,540,Blinding Duralyte,booster,An overwhelming glow makes time nearly freeze.,1,1,10,1,False,0,0,Duration_Booster/4
+
+Difficulty_Booster/1,40,Shadestone Fragment,booster,A ominous dark fragment making cryptograms more complex.,6,6,4,5,False,0,0,None
+Difficulty_Booster/2,160,Shadestone Shard,booster,A cursed dark rock revealing hidden details.,5,5,6,3,False,0,0,Difficulty_Booster/1
+Difficulty_Booster/3,640,Shadestone,booster,An evil dark stone finding secret difficult complexities.,2,2,8,2,False,0,0,Difficulty_Booster/2
+Difficulty_Booster/5,2560,Shadestone Core,booster,A dark relic eminating malice corrupting complex cryptograms.,1,1,14,1,False,0,0,Difficulty_Booster/3
+
+Moonpanel_Luck/.2,75,Moonbeam Thread,booster,A luminous string that makes moonpanels less rare.,4,4,6,5,False,0,0,Moonpanel_orbits
+Moonpanel_Luck/.5,240,Moonlight Veil,booster,A glowing cloth that makes moonpanels appear frequently.,2,2,9,3,False,0,0,Moonpanel_Luck/.2
+Moonpanel_Luck/.8,560,Moonlit Charm,booster,A vibrant fabric disk that makes moonpanels incredibly common.,1,1,13,1,False,0,0,Moonpanel_Luck/.5
+Moonpanel_Luck/-.4,300,Solar Blessing,booster,A bright medalion that makes moonpanels less frequent., 1,1,13,1,False,0,0,Moonpanel_Luck/.8
+
+Huegrid_Luck/.2,75,Prism Nugget,booster,A rainbow nugget that makes huegrids less rare.,4,4,6,5,False,0,0,Huegrid_hexboard
+Huegrid_Luck/.5,240,Prisma Metal,booster,A vibrant rainbow metal that makes huegrids appear frequently.,2,2,9,3,False,0,0,Huegrid_Luck/.2
+Huegrid_Luck/.8,560,Prismatic Ring,booster,A bright rainbow ring that makes huegrids incredibly common.,1,1,13,1,False,0,0,Huegrid_Luck/.5
+Huegrid_Luck/-.4,300,Voidic Rock,booster,A dark rock that makes huegrids less frequent.,1,1,13,1,False,0,0,Huegrid_Luck/.8
+
+Sigilboard_Luck/.2,75,Mirror Disk,booster,A small reflective disk that makes sigilboards less rare.,4,4,6,5,False,0,0,Sigilboard_halfstage
+Sigilboard_Luck/.5,240,Reflection Sphere,booster,A simple sphere mirror that makes sigilboards appear frequently.,2,2,9,3,False,0,0,Sigilboard_Luck/.2
+Sigilboard_Luck/.8,560,Refraction Tesseract,booster,A 4th dimentional reflection that makes sigilboards incredibly common.,1,1,13,1,False,0,0,Sigilboard_Luck/.5 
+Sigilboard_Luck/-.4,300,Encryption Ring,booster,A suprisingly complex ring that makes sigilboards less frequent.,1,1,13,1,False,0,0,Sigilboard_Luck/.8
+
+Cooldown_Shorten/.8,60,Sugar Faedust,instant,A aetherial gas that reduces the cooldown of cryptograms.,3,3,5,1,False,0,0,None
+Cooldown_Shorten/.5,300,Coffee Aerosol,instant,A potent aetherial gas that greatly reduces the cooldown of cryptograms.,2,2,8,1,False,0,0,Cooldown_Shorten/.8
+Cooldown_Shorten/.3,900,Caffeination Aura,instant,A vibrant aetherial gas that nearly eliminates the cooldown of cryptograms.,1,1,10,1,False,0,0,Cooldown_Shorten/.5
+
+End Shop

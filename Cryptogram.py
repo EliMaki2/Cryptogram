@@ -1,6 +1,13 @@
 import pygame
+import math
+import os
 import random
+import sys
+import threading
 import time
+from pathlib import Path
+
+file_path = Path("savedata/current_run.txt")
 
 windows = []
 max_cooldown = 10
@@ -11,13 +18,13 @@ timer = 10
 streak = 1
 coins = 0
 
+loaded_data = []
+
 unlocked_cryptograms = ["Moonpanel"]
-total_cryptograms = ["Huegrid", "Moonpanel", "Sigilboard"]
-
-active_boosters = {"Duration_Booster/1": 0, "Duration_Booster/2": 0, "Duration_Booster/3": 0, "Duration_Booster/4": 0,
-                   "Difficulty_Booster/1": 0, "Difficulty_Booster/2": 0, "Difficulty_Booster/3": 0, "Difficulty_Booster/4": 0}
-
 active_upgrades = []
+active_boosters = {}
+shop_items = []
+active_section = None
 
 class ShopItem:
     def __init__(self, name, cost, display_name=None,item_type="cryptogram", description="", stock=-1, restock_time=1, duration=1, once_time=False, prerequisite=None):
@@ -36,7 +43,7 @@ class ShopItem:
         self.prerequisite = prerequisite
 
     def purchase(self):
-        global coins, unlocked_cryptograms
+        global coins, unlocked_cryptograms, max_cooldown, cooldown
         if self.prerequisite:
             for item in shop_items:
                 if item.name == self.prerequisite and item.bought == 0:
@@ -49,9 +56,6 @@ class ShopItem:
             if self.restock_counter < self.restock_time:
                 print(f"{self.name} is out of stock, wait {self.restock_time - self.restock_counter} puzzles")
                 return False
-            else:
-                self.stock = -1 if self.stock == -1 else self.stock
-                self.restock_counter = 0
         if coins < self.cost:
             print(f"Not enough coins to purchase {self.display_name}.")
             return False
@@ -79,49 +83,92 @@ class ShopItem:
             print(f"{self.description}")
             effect, strength = self.name.split("/")
             if "Cooldown_Shorten" in self.name:
-                print(f"Effect: Reduce cooldown by {float(strength) * 100}%")
+                print(f"Effect: Reduce cooldown by {round((1-float(strength)) * 100)}%")
                 max_cooldown = max_cooldown * float(strength)
+                cooldown = cooldown * float(strength)
         
         return True
 
-shop_items = [
-    ShopItem("Huegrid", 10, display_name="Huegrid", description="Unlocks a new color based cryptogram.", item_type="cryptogram", once_time=True),
-    ShopItem("Sigilboard", 60, display_name="Sigilboard", description="Unlocks a new symbol based cryptogram.", item_type="cryptogram", once_time=True),
+    def save(self):
+        return(self.name, self.cost, self.display_name, self.type, self.description, self.stock, self.max_stock, self.restock_time, self.duration, self.once_time, self.bought, self.restock_counter, self.prerequisite)
 
-    ShopItem("Moonpanel_dots", 45, display_name="Lunar Shadograph", description="Empowers the moonpanel cryptogram, requiring new paths.", item_type="upgrade", once_time=True),
-    ShopItem("Moonpanel_orbits", 300, display_name="Eclipse Phasemesh", description="Maximise the moonpanel cryptogram, necessitating new symbols.", item_type="upgrade", once_time=True, prerequisite="Moonpanel_dots"),
+if not file_path.is_file():
+    create_file = open(file_path, "w")
+    create_file.close()
+save_file = open(file_path, "r")
+for line in save_file:
+    if not line.strip() or line.lstrip().startswith("#"):
+        continue
+    if active_section == "Shop":
+        if "End Shop" in line:
+            active_section = None
+            continue
+        name, cost, display_name, item_type, description, stock, max_stock, restock_time, duration, once_time, bought, restock_counter, prerequisite = line.strip().split(",")
+        item = ShopItem(name, int(cost), display_name, item_type, description, int(stock),
+                        int(restock_time), int(duration), once_time == "True",
+                        None if prerequisite == "None" else prerequisite)
+        item.max_stock = int(max_stock)
+        item.bought = int(bought)
+        item.restock_counter = int(restock_counter)
+        shop_items.append(item)
+        continue
+    if "Unlocked Cryptograms" in line:
+        loaded_data.append("Cryptograms")
+        cryptograms = line.split(":")
+        cryptograms = cryptograms[1]
+        cryptograms = cryptograms.split(",")
+        for cryptogram in cryptograms:
+            if cryptogram == "\n":
+                continue
+            if cryptogram in unlocked_cryptograms:
+                continue
+            unlocked_cryptograms.append(cryptogram)
+    if "Active Upgrades" in line:
+        loaded_data.append("Upgrades")
+        upgrades = line.split(":")
+        upgrades = upgrades[1]
+        upgrades = upgrades.split(",")
+        for upgrade in upgrades:
+            if upgrade == "\n":
+                continue
+            active_upgrades.append(upgrade)
+    if "Active Boosters" in line:
+        loaded_data.append("Boosters")
+        boosters = line.split(":")
+        boosters = boosters[1]
+        boosters = boosters.split(",")
+        for booster in boosters:
+            if booster == "\n":
+                continue
+            name, duration = booster.split("*")
+            active_boosters[name] = int(duration)
+    if "Coins" in line:
+        loaded_data.append("Coins")
+        coin = line.split(":")
+        coin = coin[1]
+        coins = int(coin)
+    if "Max Cooldown" in line:
+        loaded_data.append("Max_Cooldown")
+        max_cooldown = round(float(line.removesuffix("\n").split(":")[1]))
+    if "Current Cooldown" in line:
+        loaded_data.append("Current_Cooldown")
+        cooldown = round(float(line.removesuffix("\n").split(":")[1]))
+    if "Cryptogram Difficulty" in line:
+        loaded_data.append("Difficulty")
+        difficulty = round(float(line.removesuffix("\n").split(":")[1]))
+    if "Reward" in line:
+        loaded_data.append("Reward")
+        reward = round(float(line.removesuffix("\n").split(":")[1]))
+    if "Timer" in line:
+        loaded_data.append("Timer")
+        timer = round(float(line.removesuffix("\n").split(":")[1]))
+    if "Streak" in line:
+        loaded_data.append("Streak")
+        streak = round(float(line.removesuffix("\n").split(":")[1]))
+    if "Shop Items" in line:
+        active_section = "Shop"
 
-    ShopItem("Huegrid_pins", 250, display_name="Prismatic Refraction", description="Empowers the huegrid cryptogram, increacing the useable colors.", item_type="upgrade", once_time=True, prerequisite="Huegrid"),
-    ShopItem("Huegrid_hexboard", 3000, display_name="Chromatic Cascade", description="Maximise the huegrid cryptogram, warrenting new color meshes.", item_type="upgrade", once_time=True, prerequisite="Huegrid_pins"),
-
-    ShopItem("Sigilboard_quintominos", 200, display_name="Symbolic Expansion", description="Empowers the sigilboard cryptogram, increasing symbol complexity.", item_type="upgrade", once_time=True, prerequisite="Sigilboard"),
-    ShopItem("Sigilboard_halfstage", 1000, display_name="Eclidian Labyrinth", description="Maximise the sigilboard cryptogram, demanding intricate symbol placements.", item_type="upgrade", once_time=True, prerequisite="Sigilboard_quintominos"),
-
-    ShopItem("Duration_Booster/1.5", 20, display_name="Dim Duralyte", item_type="booster", description="A calming glow makes time pass slower.",
-              stock = 8, restock_time=3, duration=4),
-    ShopItem("Duration_Booster/2", 60, display_name="Duralyte", item_type="booster", description="An intense glow makes time pass even slower.",
-              stock = 4, restock_time=5, duration=2, prerequisite="Duration_Booster/1.5"),
-    ShopItem("Duration_Booster/4", 180, display_name="Bright Duralyte", item_type="booster", description="A powerful glow makes time pass extremely slowly.",
-              stock = 2, restock_time=7, duration=1, prerequisite="Duration_Booster/2"),
-    ShopItem("Duration_Booster/10", 540, display_name="Blinding Duralyte", item_type="booster", description="An overwhelming glow makes time nearly freeze.",
-              stock = 1, restock_time=10, duration=1, prerequisite="Duration_Booster/4"),
-
-    ShopItem("Difficulty_Booster/1", 40, display_name="Shadestone Fragment", item_type="booster", description="A ominous dark fragment, making cryptograms more complex.",
-                stock = 6, restock_time=4, duration=5),
-    ShopItem("Difficulty_Booster/2", 160, display_name="Shadestone Shard", item_type="booster", description="A cursed dark rock, revealing hidden details.",
-                stock = 5, restock_time=6, duration=3, prerequisite="Difficulty_Booster/1"),
-    ShopItem("Difficulty_Booster/3", 640, display_name="Shadestone", item_type="booster", description="An evil dark stone, finding secret difficult complexities.",
-                stock = 2, restock_time=8, duration=2, prerequisite="Difficulty_Booster/2"),
-    ShopItem("Difficulty_Booster/5", 2560, display_name="Shadestone Core", item_type="booster", description="A dark relic eminating malice, corrupting complex cryptograms.",
-                stock = 1, restock_time=14, duration=1, prerequisite="Difficulty_Booster/3"),
-
-    ShopItem("Cooldown_Shorten/.8", 60, display_name="Sugar Faedust", item_type="instant", description="A aetherial gas that reduces the cooldown of cryptograms.",
-             stock = 3, restock_time=5),
-    ShopItem("Cooldown_Shorten/.5", 300, display_name="Coffee Aerosol", item_type="instant", description="A potent aetherial gas that greatly reduces the cooldown of cryptograms.",
-             stock = 2, restock_time=8, prerequisite="Cooldown_Shorten/.8"),
-    ShopItem("Cooldown_Shorten/.3", 900, display_name="Caffeination Aura", item_type="instant", description="An extremely potent aetherial gas that nearly eliminates the cooldown of cryptograms.",
-             stock = 1, restock_time=10, prerequisite="Cooldown_Shorten/.5"),
-]
+total_cryptograms = ["Huegrid", "Moonpanel", "Sigilboard"]
 
 class PygameWindow:
     def __init__(self, width, height, name="Pygame Window", color = (150, 150, 150), difficulty=1, reward=1, time=60):
@@ -174,18 +221,18 @@ class PygameWindow:
 class Huegrid(PygameWindow):
     def __init__(self, width, height, name="Cryptogram", color=(150, 150, 150), difficulty=1, reward=1, time=60):
         super().__init__(width, height, name, color, difficulty, reward, time)
-        if difficulty < 10:
-            self.x = min(3+difficulty,8)
-            self.y = min(3+difficulty,8)
-        elif difficulty < 27:
-            self.x = min(3+int(difficulty/2),12)
-            self.y = min(3+int(difficulty/2),12)
-        elif difficulty < 75:
-            self.x = min(3+int(difficulty/3),18)
-            self.y = min(3+int(difficulty/3),18)
+        if self.difficulty < 20:
+            self.x = min(4+self.difficulty//4,8)
+            self.y = min(4+self.difficulty//4,8)
+        elif self.difficulty < 72:
+            self.x = min(4+self.difficulty//8,12)
+            self.y = min(4+self.difficulty//8,12)
+        elif self.difficulty < 215:
+            self.x = min(4+self.difficulty//16,18)
+            self.y = min(4+self.difficulty//16,18)
         else:
-            self.x = (3+int(difficulty/5))
-            self.y = (3+int(difficulty/5))
+            self.x = min(4+self.difficulty//32, 22)
+            self.y = min(4+self.difficulty//32, 22)
         self.grid = []
         self.perfect_grid = []
         self.selected = None
@@ -233,7 +280,7 @@ class Huegrid(PygameWindow):
     def generate_grid(self):
         red_step = 255 // max(1, self.x - 1)
         green_step = 255 // max(1, self.y - 1)
-        blue_step = 255 // max(1, self.x - 1)
+        blue_step = 255 // max(1, self.y - 1)
         y_step = -1
         for row in range(self.y):
             y_step += 1
@@ -410,18 +457,18 @@ class Huegrid(PygameWindow):
 class Moonpanel(PygameWindow):
     def __init__(self, width, height, name="Cryptogram", color=(150, 150, 150), difficulty=1, reward=1, time=60):
         super().__init__(width, height, name, color, difficulty, reward, time)
-        if self.difficulty < 8:
-            self.x = min(2+self.difficulty*2, 10)
-            self.y = min(2+self.difficulty*2, 10)
-        elif self.difficulty < 28:
-            self.x = min(2+self.difficulty, 16)
-            self.y = min(2+self.difficulty, 16)
-        elif self.difficulty < 100:
-            self.x = min(2+self.difficulty/2, 22)
-            self.y = min(2+self.difficulty/2, 22)
+        if self.difficulty < 16:
+            self.x = min(4+self.difficulty//2, 6)
+            self.y = min(4+self.difficulty//2, 6)
+        elif self.difficulty < 64:
+            self.x = min(4+self.difficulty//4, 10)
+            self.y = min(4+self.difficulty//4, 10)
+        elif self.difficulty < 192:
+            self.x = min(4+self.difficulty//8, 14)
+            self.y = min(4+self.difficulty//8, 14)
         else:
-            self.x = 2+self.difficulty/5
-            self.y = 2+self.difficulty/5
+            self.x = min(4+self.difficulty//16, 18)
+            self.y = min(4+self.difficulty//16, 18)
         self.grid = []
         self.dots = []
         self.orbits = []  # List of orbit squares with their required crossing counts
@@ -758,7 +805,7 @@ class Moonpanel(PygameWindow):
                     square_pos = (center_x - square_size // 2, center_y - square_size // 2)
                     pygame.draw.rect(
                         self.screen,
-                        self.shift_color(self.brighten_color(.5), b_shift=50),
+                        self.shift_color(self.brighten_color(2), b_shift=100),
                         (*square_pos, square_size, square_size),
                         2  # Draw only the border (hollow)
                     )
@@ -769,7 +816,7 @@ class Moonpanel(PygameWindow):
                         square_pos = (center_x + offset - square_size // 2, center_y - square_size // 2)
                         pygame.draw.rect(
                             self.screen,
-                            self.shift_color(self.brighten_color(.5), b_shift=50),
+                            self.shift_color(self.brighten_color(2), b_shift=100),
                             (*square_pos, square_size, square_size)
                         )
 
@@ -883,15 +930,16 @@ class Sigilboard(PygameWindow):
     def __init__(self, width, height, name="Cryptogram", color=(150, 150, 150), difficulty=1, reward=1, time=60):
         super().__init__(width, height, name, color, difficulty, reward, time) 
         self.sigils = []
-        if self.difficulty < 10:
-            self.sigil_amount = min(difficulty + 3, 8)
-            self.grid_size = min(12 + difficulty * 4, self.sigil_amount * 4)
-        elif self.difficulty < 24:
-            self.sigil_amount = min(difficulty//2 + 3, 15)
-            self.grid_size = min(12 + difficulty * 2, self.sigil_amount * 4)
+        if self.difficulty < 20:
+            self.grid_size = min(12 + self.difficulty * 2, 32)
+        elif self.difficulty < 64:
+            self.grid_size = min(12 + self.difficulty, 44)
+        elif self.difficulty < 176:
+            self.grid_size = min(12 + self.difficulty//2, 56)
         else:
-            self.sigil_amount = difficulty//4 + 3
-            self.grid_size = 12 + difficulty
+            self.grid_size = 12 + self.difficulty//4
+
+        self.sigil_amount = max(1, self.grid_size // 4)  # Ensure at least one sigil is generated
 
         if "Sigilboard_quintominos" in active_upgrades:
             self.reward *= 1.5
@@ -902,8 +950,6 @@ class Sigilboard(PygameWindow):
             self.reward *= 2
             self.grid_size *= 2
         
-        print(self.grid_size)
-        print(self.sigil_amount)
         self.x = random.randint(3,(self.grid_size)//3)
         self.y = int(self.grid_size/self.x)
         self.grid = []
@@ -1401,28 +1447,24 @@ def create_moonpanel(width, height, title, color, difficulty, reward, time):
     panel = Moonpanel(width, height, title, color, difficulty, reward, time)
     panel.generate_grid()
     windows.append(panel)
-    print(f"\nCreated Moonpanel with difficulty {difficulty}")
     return panel
 
 def create_sigilboard(width, height, title, color, difficulty, reward, time):
     board = Sigilboard(width, height, title, color, difficulty, reward, time)
     board.generate_grid()
     windows.append(board)
-    print(f"\nCreated Sigilboard with difficulty {difficulty}")
     return board
 
 def create_huegrid(width, height, title, color, difficulty, reward, time):
     grid = Huegrid(width, height, title, color, difficulty, reward, time)
     grid.generate_grid()
     windows.append(grid)
-    print(f"\nCreated Huegrid with difficulty {difficulty}")
     return grid
 
 def open_shop():
-    global shop_items
     shop_open = True
     while shop_open:
-        print("\n\nSHOP")
+        print("\nSHOP")
         print("Enter the item name to purchase, or exit to leave the shop.")
         print(f"Coins: {coins}")
         for item in shop_items:
@@ -1485,10 +1527,10 @@ def run_pygame_loop():
                 print("Good Work!")
                 print(f"Cryptocoins: {coins}\n")
                 streak += 1
-                difficulty += .1*streak
+                difficulty += .03*streak
                 time_factor = window.time / window.max_time
-                time_factor = 1.6 - time_factor
-                max_cooldown = (max_cooldown * (1+(streak/5))) * time_factor
+                time_factor = 1.7 - time_factor
+                max_cooldown = ((max_cooldown) * time_factor) + streak/8
                 reward += streak
                 cooldown = max_cooldown
                 for item in shop_items:
@@ -1512,6 +1554,11 @@ def run_pygame_loop():
 
 def create_cryptogram(difficulty, reward, timer):
     difficulty = round(difficulty)
+    chances = {}
+    for cryptogram in unlocked_cryptograms:
+        chances[cryptogram] = 0
+    if not chances:
+        raise ValueError("At least one cryptogram must be unlocked")
     for booster in active_boosters:
         if active_boosters[booster] > 0:
             booster_type, booster_level = booster.split("/")
@@ -1519,27 +1566,207 @@ def create_cryptogram(difficulty, reward, timer):
                 timer *= float(booster_level)
             elif booster_type == "Difficulty_Booster":
                 difficulty += int(booster_level)
+            elif booster_type == "Moonpanel_Luck":
+                if "Moonpanel" in unlocked_cryptograms:
+                    chances["Moonpanel"] = int(float(booster_level)*100)
+            elif booster_type == "Huegrid_Luck":
+                if "Huegrid" in unlocked_cryptograms:
+                    chances["Huegrid"] = int(float(booster_level)*100)
+            elif booster_type == "Sigilboard_Luck":
+                if "Sigilboard" in unlocked_cryptograms:
+                    chances["Sigilboard"] = int(float(booster_level)*100)
             active_boosters[booster] -= 1
-    cryprogram = random.choice(unlocked_cryptograms)
+    while True:
+        total = sum(chances.values())
+        if total < 100:
+            selected = random.choice(unlocked_cryptograms)
+            chances[selected] += 1
+        else:
+            for name in chances:
+                chances[name] = max(0, chances[name])
+            if sum(chances.values()) == 100:
+                break
+            selected = random.choice([name for name, weight in chances.items() if weight > 0])
+            chances[selected] -= 1
+
+    cryptogram = random.choices(list(chances), weights=list(chances.values()), k=1)[0]
+
     color = random.choice([(70, 70, 130), (70, 130, 70), (130, 70, 70),
                            (130, 130, 70), (130, 70, 130), (70, 130, 130), 
                            (70, 70, 70), (110, 110, 110), (130, 130, 130),
                            (110, 130, 70), (130, 110, 70), (110, 110, 70),
                            (110, 70, 130), (110, 70, 130), (110, 70, 110),
                            (70, 110, 130), (70, 130, 110), (70, 110, 110)])
-    if cryprogram == "Moonpanel":
+    if cryptogram == "Moonpanel":
         create_moonpanel(600, 600, "Moonpanel Window", color, difficulty, reward*difficulty, 15+(difficulty*timer))
-    elif cryprogram == "Sigilboard":
+    elif cryptogram == "Sigilboard":
         create_sigilboard(600, 700, "Sigilboard Window", color, difficulty, reward*difficulty, 25+(2*difficulty*timer))
-    elif cryprogram == "Huegrid":
+    elif cryptogram == "Huegrid":
         create_huegrid(600, 600, "Huegrid Window", color, difficulty, reward*difficulty, 20+(difficulty*timer))
 
+def show_stats():
+    global unlocked_cryptograms, active_upgrades, active_boosters, coins, max_cooldown, cooldown, difficulty, reward, streak, timer
+    print("Unlocked Cryptograms:", ", ".join(unlocked_cryptograms))
+    print("Active Upgrades:", ", ".join(active_upgrades))
+    print("Active Boosters:\n", "".join(f"  {name} for {active_boosters[name]} rounds\n" for name in active_boosters))
+    print("Total Coins:", coins)
+    print("Max Cooldown:", max_cooldown)
+    print("Current Cooldown:", cooldown)
+    print("Cryptogram Difficulty:", difficulty)
+    print("Reward:", reward)
+    print("Streak:", streak)
+    print("Timer:", timer)
 
-if __name__ == '__main__':    
-    running = True
+def shutdown():
+    global unlocked_cryptograms, active_upgrades, coins, max_cooldown, cooldown, difficulty, reward, streak, timer
+    savedata = open("savedata/current_run.txt", "w")
+    temp = ""
+    for cryptogram in unlocked_cryptograms:
+        temp += (cryptogram+",")
+    savedata.write("Unlocked Cryptograms:"+temp+"\n")
+    temp = ""
+    for upgrade in active_upgrades:
+        temp += (upgrade+",")
+    savedata.write("Active Upgrades:"+temp+"\n")
+    temp = ""
+    for booster in active_boosters:
+        name = booster
+        temp += (name+"*"+str(active_boosters[booster])+",")
+    savedata.write("Active Boosters:"+temp+"\n")
+    savedata.write("Total Coins:"+str(coins)+"\n")
+    savedata.write("Max Cooldown:"+str(max_cooldown)+"\n")
+    savedata.write("Current Cooldown:"+str(cooldown)+"\n")
+    savedata.write("Cryptogram Difficulty:"+str(difficulty)+"\n")
+    savedata.write("Reward:"+str(reward)+"\n")
+    savedata.write("Streak:"+str(streak)+"\n")
+    savedata.write("Timer:"+str(timer)+"\n")
+    savedata.write("Shop Items"+"\n")
+    for item in shop_items:
+        temp = item.save()
+        savedata.write(",".join(map(str, temp))+"\n")
+    savedata.write("End Shop"+"\n")
+    savedata.close()
+    quit()
+
+def read_console_key():
+    if os.name == "nt":
+        import msvcrt
+        if not msvcrt.kbhit():
+            return None
+        key = msvcrt.getwch()
+        if key in ("\x00", "\xe0"):
+            msvcrt.getwch()
+            return None
+        return key
+
+    import select
+    import termios
+    import tty
+    fd = sys.stdin.fileno()
+    previous = termios.tcgetattr(fd)
+    try:
+        tty.setcbreak(fd)
+        if select.select([sys.stdin], [], [], 0)[0]:
+            return sys.stdin.read(1)
+        return None
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, previous)
+
+
+def cooldown_text(seconds):
+    seconds = math.ceil(max(0, seconds))
+    if seconds <= 60:
+        return f"Cooldown: {seconds} Seconds"
+    if seconds <= 3600:
+        return f"Cooldown: {seconds // 60} Minutes, {seconds % 60} Seconds"
+    return f"Cooldown: {seconds // 3600} Hours, {(seconds % 3600) // 60} Minutes, {seconds % 60} Seconds"
+
+
+def wait_for_cryptogram(duration):
+    deadline = time.monotonic() + max(0, duration)
+    typed = ""
+    displayed = None
+
+    def update_cooldown():
+        global cooldown
+        try:
+            if cooldown < math.ceil(max(0, deadline - time.monotonic())):
+                deadline = time.monotonic() + cooldown
+            cooldown = math.ceil(max(0, deadline - time.monotonic()))
+        except Exception:
+            deadline = time.monotonic() + cooldown
+
+    def show_screen():
+        nonlocal displayed
+        remaining = max(0, deadline - time.monotonic())
+        displayed = cooldown_text(remaining) if remaining > 0 else (
+            'Press Enter to start the next cryptogram...'
+        )
+        print("\nWait for a cryptogram, type shop to enter the shop, type stats to view your stats, or quit to save and exit")
+        print(displayed, flush=True)
+
+    update_cooldown()
+    show_screen()
+    while True:
+        update_cooldown()
+        key = read_console_key()
+        if key in ("\r", "\n"):
+            print()
+            choice = typed.strip().lower()
+            typed = ""
+            if choice == "shop":
+                stop_updates = threading.Event()
+
+                def update_in_shop():
+                    while not stop_updates.wait(0.1):
+                        update_cooldown()
+
+                updater = threading.Thread(target=update_in_shop)
+                updater.start()
+                try:
+                    open_shop()
+                finally:
+                    stop_updates.set()
+                    updater.join()
+                    update_cooldown()
+            elif choice == "quit":
+                update_cooldown()
+                shutdown()
+                return
+            elif choice == "stats":
+                show_stats()
+            elif not choice and time.monotonic() >= deadline:
+                return
+            elif choice:
+                print("Unknown command. Type shop or quit.")
+            show_screen()
+        elif key in ("\b", "\x7f"):
+            if typed:
+                typed = typed[:-1]
+                print("\b \b", end="", flush=True)
+        elif key == "\x03":
+            raise KeyboardInterrupt
+        elif key == "\x1a" or key == "\x04":
+            raise EOFError("Console input closed")
+        elif key and key.isprintable():
+            typed += key
+            print(key, end="", flush=True)
+
+        if not typed:
+            remaining = max(0, deadline - time.monotonic())
+            text = cooldown_text(remaining) if remaining > 0 else (
+                'Press Enter to start the next cryptogram...'
+            )
+            if text != displayed:
+                # Update the line above the empty input without moving its cursor.
+                print(f"\033[1A\r\033[2K{text}\033[1B\r", end="", flush=True)
+                displayed = text
+        time.sleep(0.05)
+
+
+if __name__ == '__main__':
     pygame_initialized = False
-
-    while running:
+    while True:
         if windows:
             if not pygame_initialized:
                 pygame.init()
@@ -1549,16 +1776,5 @@ if __name__ == '__main__':
             if pygame_initialized:
                 pygame.quit()
                 pygame_initialized = False
-            if cooldown <= 60:
-                print(f"Cooldown: {round(cooldown)} Seconds                         ", end="\r", flush=True)
-            elif cooldown <= 3600:
-                print(f"Cooldown: {round(cooldown//60)} Minutes, {round(cooldown%60)} Seconds                   ", end="\r", flush=True)
-            else:
-                print(f"Cooldown: {round(cooldown//3600)} Hours, {round((cooldown%3600)//60)} Minutes, {round(cooldown%60)} Seconds    ", end="\r", flush=True)
-            cooldown -= 1
-            time.sleep(1)
-            if cooldown <= 0:
-                temp = input("Press Enter to start the next cryptogram or type \"shop\" to access the shop: ")
-                if temp.lower() == "shop":
-                    open_shop()  # Assuming there is a function to open the shop
-                create_cryptogram(difficulty, reward, timer)
+            wait_for_cryptogram(cooldown)
+            create_cryptogram(difficulty, reward, timer)
