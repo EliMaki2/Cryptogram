@@ -1,5 +1,5 @@
-from Cryptogram import Moonpanel, Sigilboard
-import Cryptogram
+from Cryptogram_Demo import Moonpanel, Sigilboard
+import Cryptogram_Demo
 import io
 import pygame
 import time
@@ -22,14 +22,14 @@ class TestCryptogramSelection(unittest.TestCase):
                         return selected
                     return options[0]
 
-                with patch.object(Cryptogram, "unlocked_cryptograms", names), \
-                     patch.object(Cryptogram, "active_boosters", {}), \
-                     patch.object(Cryptogram.random, "choice", side_effect=choose), \
-                     patch.object(Cryptogram.random._inst, "random", return_value=value), \
-                     patch.object(Cryptogram, "create_moonpanel") as moonpanel, \
-                     patch.object(Cryptogram, "create_huegrid") as huegrid, \
-                     patch.object(Cryptogram, "create_sigilboard") as sigilboard:
-                    Cryptogram.create_cryptogram(1, 1, 1)
+                with patch.object(Cryptogram_Demo, "unlocked_cryptograms", names), \
+                     patch.object(Cryptogram_Demo, "active_boosters", {}), \
+                     patch.object(Cryptogram_Demo.random, "choice", side_effect=choose), \
+                     patch.object(Cryptogram_Demo.random._inst, "random", return_value=value), \
+                     patch.object(Cryptogram_Demo, "create_moonpanel") as moonpanel, \
+                     patch.object(Cryptogram_Demo, "create_huegrid") as huegrid, \
+                     patch.object(Cryptogram_Demo, "create_sigilboard") as sigilboard:
+                    Cryptogram_Demo.create_cryptogram(1, 1, 1)
                     for name, creator in zip(names, [moonpanel, huegrid, sigilboard]):
                         self.assertEqual(creator.call_count, int(name == expected))
 
@@ -37,47 +37,47 @@ class TestCryptogramSelection(unittest.TestCase):
         for value, expected in [(0.0, "Moonpanel"), (0.79, "Moonpanel"),
                                 (0.8, "Huegrid"), (0.999, "Huegrid")]:
             with self.subTest(value=value), \
-                 patch.object(Cryptogram, "unlocked_cryptograms", ["Moonpanel", "Huegrid"]), \
-                 patch.object(Cryptogram, "active_boosters", {"Moonpanel_Luck/.8": 1}), \
-                 patch.object(Cryptogram.random, "choice", side_effect=lambda options: options[-1]), \
-                 patch.object(Cryptogram.random._inst, "random", return_value=value), \
-                 patch.object(Cryptogram, "create_moonpanel") as moonpanel, \
-                 patch.object(Cryptogram, "create_huegrid") as huegrid:
-                Cryptogram.create_cryptogram(1, 1, 1)
+                 patch.object(Cryptogram_Demo, "unlocked_cryptograms", ["Moonpanel", "Huegrid"]), \
+                 patch.object(Cryptogram_Demo, "active_boosters", {"Moonpanel_Luck/.8": 1}), \
+                 patch.object(Cryptogram_Demo.random, "choice", side_effect=lambda options: options[-1]), \
+                 patch.object(Cryptogram_Demo.random._inst, "random", return_value=value), \
+                 patch.object(Cryptogram_Demo, "create_moonpanel") as moonpanel, \
+                 patch.object(Cryptogram_Demo, "create_huegrid") as huegrid:
+                Cryptogram_Demo.create_cryptogram(1, 1, 1)
                 self.assertEqual(moonpanel.call_count, int(expected == "Moonpanel"))
                 self.assertEqual(huegrid.call_count, int(expected == "Huegrid"))
-                self.assertEqual(Cryptogram.active_boosters["Moonpanel_Luck/.8"], 0)
+                self.assertEqual(Cryptogram_Demo.active_boosters["Moonpanel_Luck/.8"], 0)
 
     def test_zero_weight_does_not_select_last_unlocked(self):
-        with patch.object(Cryptogram, "unlocked_cryptograms", ["Moonpanel", "Huegrid"]), \
-             patch.object(Cryptogram, "active_boosters", {}), \
-             patch.object(Cryptogram.random, "choice", side_effect=lambda options: options[0]), \
-             patch.object(Cryptogram.random._inst, "random", return_value=0.999), \
-             patch.object(Cryptogram.random, "randint", return_value=100), \
-             patch.object(Cryptogram, "create_moonpanel") as moonpanel, \
-             patch.object(Cryptogram, "create_huegrid") as huegrid:
-            Cryptogram.create_cryptogram(1, 1, 1)
+        with patch.object(Cryptogram_Demo, "unlocked_cryptograms", ["Moonpanel", "Huegrid"]), \
+             patch.object(Cryptogram_Demo, "active_boosters", {}), \
+             patch.object(Cryptogram_Demo.random, "choice", side_effect=lambda options: options[0]), \
+             patch.object(Cryptogram_Demo.random._inst, "random", return_value=0.999), \
+             patch.object(Cryptogram_Demo.random, "randint", return_value=100), \
+             patch.object(Cryptogram_Demo, "create_moonpanel") as moonpanel, \
+             patch.object(Cryptogram_Demo, "create_huegrid") as huegrid:
+            Cryptogram_Demo.create_cryptogram(1, 1, 1)
             moonpanel.assert_called_once()
             huegrid.assert_not_called()
 
     def test_negative_luck_never_produces_negative_weights(self):
         boosters = {"Moonpanel_Luck/-.4": 1, "Huegrid_Luck/.8": 1,
                     "Sigilboard_Luck/.8": 1}
-        with patch.object(Cryptogram, "unlocked_cryptograms", ["Moonpanel", "Huegrid", "Sigilboard"]), \
-             patch.object(Cryptogram, "active_boosters", boosters), \
-             patch.object(Cryptogram.random, "choice", side_effect=lambda options: options[-1]), \
-             patch.object(Cryptogram.random, "choices", return_value=["Huegrid"]) as choices, \
-             patch.object(Cryptogram, "create_huegrid"):
-            Cryptogram.create_cryptogram(1, 1, 1)
+        with patch.object(Cryptogram_Demo, "unlocked_cryptograms", ["Moonpanel", "Huegrid", "Sigilboard"]), \
+             patch.object(Cryptogram_Demo, "active_boosters", boosters), \
+             patch.object(Cryptogram_Demo.random, "choice", side_effect=lambda options: options[-1]), \
+             patch.object(Cryptogram_Demo.random, "choices", return_value=["Huegrid"]) as choices, \
+             patch.object(Cryptogram_Demo, "create_huegrid"):
+            Cryptogram_Demo.create_cryptogram(1, 1, 1)
             weights = choices.call_args.kwargs["weights"]
             self.assertTrue(all(weight >= 0 for weight in weights))
             self.assertEqual(sum(weights), 100)
             self.assertEqual(weights[0], 0)
 
     def test_no_unlocked_cryptograms_raises(self):
-        with patch.object(Cryptogram, "unlocked_cryptograms", []):
+        with patch.object(Cryptogram_Demo, "unlocked_cryptograms", []):
             with self.assertRaisesRegex(ValueError, "At least one cryptogram"):
-                Cryptogram.create_cryptogram(1, 1, 1)
+                Cryptogram_Demo.create_cryptogram(1, 1, 1)
 
 
 class TestCooldownInput(unittest.TestCase):
@@ -104,12 +104,12 @@ class TestCooldownInput(unittest.TestCase):
             if shop:
                 shop(clock, output)
 
-        with patch.object(Cryptogram.time, "monotonic", side_effect=lambda: clock[0]), \
-             patch.object(Cryptogram.time, "sleep", side_effect=sleep), \
-             patch.object(Cryptogram, "read_console_key", side_effect=read_key), \
-             patch.object(Cryptogram, "open_shop", side_effect=visit_shop), \
+        with patch.object(Cryptogram_Demo.time, "monotonic", side_effect=lambda: clock[0]), \
+             patch.object(Cryptogram_Demo.time, "sleep", side_effect=sleep), \
+             patch.object(Cryptogram_Demo, "read_console_key", side_effect=read_key), \
+             patch.object(Cryptogram_Demo, "open_shop", side_effect=visit_shop), \
              patch("sys.stdout", output):
-            Cryptogram.wait_for_cryptogram(duration)
+            Cryptogram_Demo.wait_for_cryptogram(duration)
         return output.getvalue(), snapshots
 
     def test_typing_hides_updates_until_line_cleared(self):
@@ -147,26 +147,26 @@ class TestCooldownInput(unittest.TestCase):
         self.assertIn("Press Enter to start", output)
 
     def test_saved_shop_items_are_usable(self):
-        item = next(item for item in Cryptogram.shop_items if item.name == "Huegrid")
+        item = next(item for item in Cryptogram_Demo.shop_items if item.name == "Huegrid")
         self.assertIsInstance(item.cost, int)
         self.assertIsInstance(item.once_time, bool)
         self.assertIsNone(item.prerequisite)
-        with patch.object(Cryptogram, "shop_items", [item]), \
+        with patch.object(Cryptogram_Demo, "shop_items", [item]), \
              patch("builtins.input", return_value="exit"), \
              patch("sys.stdout", new_callable=io.StringIO) as output:
-            Cryptogram.open_shop()
+            Cryptogram_Demo.open_shop()
         self.assertIn("Huegrid - ", output.getvalue())
 
     def test_cooldown_item_can_be_purchased_in_shop(self):
-        item = Cryptogram.ShopItem("Cooldown_Shorten/.8", 60, "Sugar Faedust", item_type="instant")
-        with patch.object(Cryptogram, "shop_items", [item]), \
-             patch.object(Cryptogram, "coins", 60), \
-             patch.object(Cryptogram, "max_cooldown", 10), \
+        item = Cryptogram_Demo.ShopItem("Cooldown_Shorten/.8", 60, "Sugar Faedust", item_type="instant")
+        with patch.object(Cryptogram_Demo, "shop_items", [item]), \
+             patch.object(Cryptogram_Demo, "coins", 60), \
+             patch.object(Cryptogram_Demo, "max_cooldown", 10), \
              patch("builtins.input", side_effect=["Sugar Faedust", "exit"]), \
              patch("sys.stdout", new_callable=io.StringIO):
-            Cryptogram.open_shop()
-            self.assertEqual(Cryptogram.coins, 0)
-            self.assertEqual(Cryptogram.max_cooldown, 8)
+            Cryptogram_Demo.open_shop()
+            self.assertEqual(Cryptogram_Demo.coins, 0)
+            self.assertEqual(Cryptogram_Demo.max_cooldown, 8)
 
     def test_global_cooldown_updates_while_typing_and_before_quit(self):
         clock = [0.0]
@@ -174,22 +174,22 @@ class TestCooldownInput(unittest.TestCase):
         keys = iter(["q", None, None, "u", "i", "t", "\r"])
 
         def read_key():
-            observed.append(Cryptogram.cooldown)
+            observed.append(Cryptogram_Demo.cooldown)
             return next(keys)
 
         def sleep(seconds):
             clock[0] += 1
 
-        with patch.object(Cryptogram, "cooldown", 99), \
-             patch.object(Cryptogram.time, "monotonic", side_effect=lambda: clock[0]), \
-             patch.object(Cryptogram.time, "sleep", side_effect=sleep), \
-             patch.object(Cryptogram, "read_console_key", side_effect=read_key), \
-             patch.object(Cryptogram, "shutdown") as shutdown, \
+        with patch.object(Cryptogram_Demo, "cooldown", 99), \
+             patch.object(Cryptogram_Demo.time, "monotonic", side_effect=lambda: clock[0]), \
+             patch.object(Cryptogram_Demo.time, "sleep", side_effect=sleep), \
+             patch.object(Cryptogram_Demo, "read_console_key", side_effect=read_key), \
+             patch.object(Cryptogram_Demo, "shutdown") as shutdown, \
              patch("sys.stdout", new_callable=io.StringIO):
-            Cryptogram.wait_for_cryptogram(4)
+            Cryptogram_Demo.wait_for_cryptogram(4)
             shutdown.assert_called_once()
             self.assertEqual(observed[:5], [4, 3, 2, 1, 0])
-            self.assertEqual(Cryptogram.cooldown, 0)
+            self.assertEqual(Cryptogram_Demo.cooldown, 0)
 
     def test_global_cooldown_updates_while_shop_blocks(self):
         keys = iter("shop\r\r")
@@ -197,17 +197,17 @@ class TestCooldownInput(unittest.TestCase):
 
         def visit_shop():
             time.sleep(1.1)
-            observed.append(Cryptogram.cooldown)
+            observed.append(Cryptogram_Demo.cooldown)
             time.sleep(1.2)
-            observed.append(Cryptogram.cooldown)
+            observed.append(Cryptogram_Demo.cooldown)
 
-        with patch.object(Cryptogram, "cooldown", 99), \
-             patch.object(Cryptogram, "read_console_key", side_effect=lambda: next(keys)), \
-             patch.object(Cryptogram, "open_shop", side_effect=visit_shop), \
+        with patch.object(Cryptogram_Demo, "cooldown", 99), \
+             patch.object(Cryptogram_Demo, "read_console_key", side_effect=lambda: next(keys)), \
+             patch.object(Cryptogram_Demo, "open_shop", side_effect=visit_shop), \
              patch("sys.stdout", new_callable=io.StringIO):
-            Cryptogram.wait_for_cryptogram(2)
+            Cryptogram_Demo.wait_for_cryptogram(2)
             self.assertEqual(observed, [1, 0])
-            self.assertEqual(Cryptogram.cooldown, 0)
+            self.assertEqual(Cryptogram_Demo.cooldown, 0)
 
 class TestMoonpanel(unittest.TestCase):
     def setUp(self):

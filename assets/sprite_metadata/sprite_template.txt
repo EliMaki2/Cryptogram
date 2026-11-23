@@ -1,0 +1,2 @@
+Hitboxes for sprite sprite_template
+Left:0, Top:0, Width:20, Height:40
